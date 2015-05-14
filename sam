@@ -23,7 +23,7 @@ copy_meta_func () {
 	TEMPLATE_DIR=`mktemp -d`;
 	$DOCKER_PATH run -i -t --rm -v $TEMPLATE_DIR:$TEMPLATE_DIR  --net=host --entrypoint="cp" $IMAGE -r /meta $TEMPLATE_DIR/meta 2>&1 > /dev/null;
 	if [[ $? -ne 0 ]]; then
-        	echo -e "\E[31mERROR: Directory '/meta' not fount to image.">&2;tput sgr0;
+        	echo -e "\E[31mERROR: Directory '/meta' not found in image.">&2;tput sgr0;
 		rm -rf $TEMPLATE_DIR;
 		exit 1;
 	fi;
@@ -57,19 +57,19 @@ install_image_func () {
 	echo;	
 }
 
-# Save image to db function
+# Save image in db function
 save_image_to_list_db_func () {
-	# Exist image to db
+	# Exist image in db?
 	TEST_EXIST=`echo "$IMAGE" | awk -F ':' 'NF--' | sed "s/ /:/g"`
 	TEST_EXIST=`cat $SAM_DB_LIST | grep $TEST_EXIST`;
 	if [[ -n $TEST_EXIST ]];then
-                echo -e "\E[31mERROR: Image installed to db. ">&2;tput sgr0;
+                echo -e "\E[31mERROR: Image exist in db. ">&2;tput sgr0;
 		echo "List exist images: ./sam -l"
 		echo;
                 exit 1;
         fi;
         echo  "Save image to db.";
-	# Collecting info to image
+	# Collecting info in image
         IMAGE_ID=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
         IMAGE_VERSION=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
         IMAGE_NAME=`$DOCKER_PATH images | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
@@ -78,9 +78,9 @@ save_image_to_list_db_func () {
 	echo -e "$IMAGE_ID\t$IMAGE_NAME\t$IMAGE_VERSION" >> $SAM_DB_LIST;
 }
 
-# Delete image to db function
+# Delete image in db function
 delete_image_to_list_db_func () {
-        echo  "Delete image to db.";
+        echo  "Delete image name in db.";
 
         # Edit db
         #set -i "/$IMAGE/d" $SAM_DB_LIST;
@@ -129,20 +129,20 @@ fi;
 
 USAGE="
 Options:
-	-f  [archive.tar]	Docker load image from tar archive.
-	-i  [image]:[version]	Install selected docker image.
-	-u  [image]:[version]	Uninstall selected container to db.
-	-x  [-f:-i:-u] 		Debug mode from options.
-	-I  [image]:[version]	Info to image.
-	-c  [image]:[version]	Copy meta image in dirrectory /tmp.
-	-l  			List installed image to db.
-	-L  [image]		List version to image from Docker Hub.
-	-h           		Help.
+	-f  [archive.tar]	Load image from tar archive
+	-i  [image]:[version]	Install selected docker image
+	-u  [image]:[version]	Uninstall selected container
+	-x  [-f:-i:-u] 		Debug mode
+	-I  [image]:[version]	Print image info
+	-c  [image]:[version]	Copy metadata from image to directory /tmp
+	-l  			List installed image
+	-L  [image]		List image versions from Docker Hub
+	-h           		Help
 
 Environments:
-	DOCKER_PATH		Path docker. default: DOCKER_PATH=$DOCKER_PATH
-	SAM_DB_LIST		Database from installed images. default: SAM_DB_LIST=$SAM_DB_LIST
-	BIN_DIR			Executable file is copied in dirrectory, default: BIN_DIR=$BIN_DIR	
+	DOCKER_PATH		Path docker, default: DOCKER_PATH=$DOCKER_PATH
+	SAM_DB_LIST		SAM database, default: SAM_DB_LIST=$SAM_DB_LIST
+	BIN_DIR			Path to directory with executable files, default: BIN_DIR=$BIN_DIR	
 ";
 
 while getopts "L:li:f:u:c:xI:h" OPTION
@@ -185,15 +185,15 @@ do
 		# Find file "repositories"
 		tar -xf $OPTARG repositories;
 		if [[ $? -ne 0 ]]; then
-		    echo -e "\E[31mERROR: File repositories not fount to archive.">&2;tput sgr0;
+		    echo -e "\E[31mERROR: File repositories not found in archive.">&2;tput sgr0;
 		    echo "May be incorrectly created archive.";
 		    exit 1;
 		fi;
 		# Correct file "repositories"
                 IMAGE=`cat repositories | awk -F '"' ' {print $2,$4} ' | sed "s/ /:/g"`;
 		if [[ -z $IMAGE ]]; then
-		    echo -e "\E[31mERROR: Incorrect file repositories to archive.">&2;tput sgr0;
-		    echo "Not found image name to file.";
+		    echo -e "\E[31mERROR: Incorrect file 'repositories' in archive.">&2;tput sgr0;
+		    echo "Not found image name in file.";
 		    echo "May be incorrectly created archive.";
 		    exit 1;
 		fi;
@@ -201,7 +201,7 @@ do
 		##`
 		TEST_IMAGE=`cat $SAM_DB_LIST | awk -F '\t' ' {print $2,$3} ' | sed "s/ /:/g" | grep "$IMAGE"`;
            	if [[ -z $TEST_IMAGE ]];then
-                	echo "Image not found to db."
+                	echo "Image not found in db."
 			# Load image
 			echo "Loading image $IMAGE."
 			$DOCKER_PATH load -i $OPTARG
@@ -214,7 +214,7 @@ do
 			install_image_func;
 			echo -e "\E[32mImage installed.";tput sgr0;
 		else 
-			echo -e "\E[31mERROR: Image exist to db.">&2;tput sgr0;
+			echo -e "\E[31mERROR: Image exist in db.">&2;tput sgr0;
 			exit 1;
 	   	fi;
 	   else
@@ -228,13 +228,13 @@ do
 	   # Installed image?
 	   TEST_IMAGE=`cat $SAM_DB_LIST | awk -F '\t' ' {print $2,$3} ' | sed "s/ /:/g" | grep "$IMAGE"`;
 	   if [[ -n $TEST_IMAGE ]];then
-		echo -e "\E[31mERROR: Image found to db. Stop installation.">&2;tput sgr0;
+		echo -e "\E[31mERROR: Image found in db. Stop installation.">&2;tput sgr0;
 		exit 1;
 	   fi;
 	   # Exist image?
 	   TEST_IMAGE=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"`;
 	   if [[ -z $TEST_IMAGE ]];then
-                echo -e "\E[31mERROR: Image not found to registry docker. Stop installation.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Image not found in registry docker. Stop installation.">&2;tput sgr0;
                 exit 1;
            fi;
 	   # Install image
@@ -249,7 +249,7 @@ do
 	   # Installed image?
            TEST_IMAGE=`cat $SAM_DB_LIST | awk -F '\t' ' {print $2,$3} ' | sed "s/ /:/g" | grep "$IMAGE"`;
            if [[ -z $TEST_IMAGE ]];then
-                echo -e "\E[31mERROR: Image not found to db.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Image not found in db.">&2;tput sgr0;
                 exit 1;
 	   else
 		IMAGE=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
@@ -257,7 +257,7 @@ do
            # Exist image?  
            TEST_IMAGE=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $3} ' | grep "$IMAGE"`;
            if [[ -z $TEST_IMAGE ]];then
-                echo -e "\E[31mERROR: Image not found to registry docker.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Image not found in registry docker.">&2;tput sgr0;
                 exit 1;
            fi;
 	   # Uninstall image
@@ -271,7 +271,7 @@ do
 	    # Exist image?
             TEST_IMAGE=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"`;
             if [[ -z $TEST_IMAGE ]];then
-                echo -e "\E[31mERROR: Image not found to registry docker. Stop installation.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Image not found in registry docker. Stop installation.">&2;tput sgr0;
                 exit 1;
             fi;
 	    copy_meta_func;
@@ -322,7 +322,7 @@ if [[ -z $IMAGE ]];then
 	image_latest_func;
 	TEST_IMAGE=`cat $SAM_DB_LIST | awk -F '\t' ' {print $2,$3} ' | sed "s/ /:/g" | grep "$IMAGE"`;
         if [[ -n $TEST_IMAGE ]];then
-            echo -e "\E[31mERROR: Image found to db. Stop installation.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Image found in db. Stop installation.">&2;tput sgr0;
             exit 1;
         fi;
 	# Pull

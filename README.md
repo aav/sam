@@ -2,28 +2,28 @@
 
 Options:
 
-        -f  [archive.tar]       Docker load image from tar archive.
+	-f  [archive.tar]	Load image from tar archive
 
-        -i  [image]:[version]   Install selected docker image.
+	-i  [image]:[version]	Install selected docker image
 
-        -u  [image]:[version]   Uninstall selected container to db.
+	-u  [image]:[version]	Uninstall selected container
 
-        -x  [-f:-i:-u]          Debug mode from options.
+	-x  [-f:-i:-u]		Debug mode
 
-        -I  [image]:[version]   Info to image.
-	
-        -c  [image]:[version]   Copy meta image in dirrectory /tmp.
+	-I  [image]:[version]	Print image info
 
-        -l                      List installed image to db.
+	-c  [image]:[version]	Copy metadata from image to directory /tmp
 
-        -L  [image]             List version to image from Docker Hub.
+	-l  			List installed image
 
-        -h                      Help
+	-L  [image]		List image versions from Docker Hub
+
+	-h  			Help
 
 Environments:
 
-        DOCKER_PATH             Path docker. default: DOCKER_PATH=/usr/bin/docker
+	DOCKER_PATH<---><------>Path docker, default: DOCKER_PATH=$DOCKER_PATH
 
-        SAM_DB_LIST             Database from installed images. default: SAM_DB_LIST=/var/db/sam/list_installed
+	SAM_DB_LIST<---><------>SAM database, default: SAM_DB_LIST=$SAM_DB_LIST
 
-        BIN_DIR                 Executable file is copied in dirrectory, default: BIN_DIR=/opt/bin
+	BIN_DIR><------><------>Path to directory with executable files, default: BIN
