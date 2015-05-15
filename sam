@@ -212,7 +212,8 @@ do
 			# Install image
 			save_image_to_list_db_func;
 			install_image_func;
-			echo -e "\E[32mImage installed.";tput sgr0;
+			echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
+			echo;
 		else 
 			echo -e "\E[31mERROR: Image exist in db.">&2;tput sgr0;
 			exit 1;
@@ -240,7 +241,8 @@ do
 	   # Install image
 	   save_image_to_list_db_func;
 	   install_image_func;
-	   echo -e "\E[32mImage installed.";tput sgr0;
+	   echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
+	   echo;
 	   exit 0
 	  ;;
 	
@@ -330,7 +332,8 @@ if [[ -z $IMAGE ]];then
 	if [[ $? -eq 0 ]]; then
 		save_image_to_list_db_func;
 		install_image_func;
-		echo -e "\E[32mImage installed.";tput sgr0;
+		echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
+		echo;
 	else
         	echo -e "\E[31mNot found image \"$1\"." >&2;tput sgr0;
 		exit 1;
