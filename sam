@@ -33,7 +33,7 @@ copy_meta_func () {
 # Uninstall image function
 uninstall_image_func () {
 	echo;	
-	echo -e "\E[32mUninstall image $IMAGE.";tput sgr0;
+	echo -e "\E[32mUninstalling image $IMAGE.";tput sgr0;
 	copy_meta_func;
 	pwd=$PWD;
 	cd $TEMPLATE_DIR/meta;
@@ -46,7 +46,7 @@ uninstall_image_func () {
 # Install image function
 install_image_func () {
 	echo;
-	echo -e "\E[32mInstall image $IMAGE";tput sgr0;
+	echo -e "\E[32mInstalling image $IMAGE.";tput sgr0;
 	copy_meta_func;
 	pwd=$PWD;
         cd $TEMPLATE_DIR/meta;
@@ -80,7 +80,7 @@ save_image_to_list_db_func () {
 
 # Delete image in db function
 delete_image_to_list_db_func () {
-        echo  "Delete image name in db.";
+        echo  "Deleting image name in db.";
 
         # Edit db
         #set -i "/$IMAGE/d" $SAM_DB_LIST;
@@ -107,7 +107,7 @@ fi
 
 # Exist BIN_DIR dirrectory ?
 if ! [[ -d $BIN_DIR ]]; then
-        echo "Create $BIN_DIR.";
+        echo "Creating $BIN_DIR.";
         mkdir -p $BIN_DIR;
 fi
 
@@ -121,7 +121,7 @@ fi;
 # Exist db?
 if ! [[ -f $SAM_DB_LIST ]];then
         echo;
-        echo "Not found db sam: $SAM_DB_LIST. Create list."
+        echo "Not found db sam: $SAM_DB_LIST. Creating list."
         echo;
         mkdir -p `echo $SAM_DB_LIST | awk -F '/' 'NF--' | sed 's/ /\//g'`;
         touch $SAM_DB_LIST;
@@ -219,7 +219,7 @@ do
 			exit 1;
 	   	fi;
 	   else
-		echo -e "\E[31m$0: Archive image not defined." >&2;tput sgr0;
+		echo -e "\E[31m$0: Archive image is not defined." >&2;tput sgr0;
 		exit 1;
 	   fi
 	  ;;
@@ -265,7 +265,7 @@ do
 	   # Uninstall image
 	   uninstall_image_func;
 	   delete_image_to_list_db_func;
-           echo -e "\E[32mImage uninstalled.";tput sgr0;
+           echo -e "\E[32mImage $IMAGE uninstalled.";tput sgr0;
            exit 0
 	  ;;
         c ) IMAGE=$OPTARG;
@@ -282,7 +282,7 @@ do
 	    echo;
 	    # Remove exist dirrectory
 	    if [[ -d /tmp/meta_$IMAGE ]];then
-		echo "Remove old dirrectory."
+		echo "Removing old dirrectory."
                 rm -r /tmp/meta_$IMAGE;
             fi;
 	    mv $TEMPLATE_DIR/meta /tmp/meta_$IMAGE
