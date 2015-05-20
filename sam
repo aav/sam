@@ -98,6 +98,31 @@ image_latest_func (){
         fi;
 }
 
+create_connect_func() {
+	echo "Creating 'connect' function."
+	echo '#!/bin/bash 
+
+connect_func(){
+PID=`/usr/bin/docker inspect --format {{.State.Pid}} $1`;
+if [ -z $PID ]; then
+        echo -e "\E[31mContainer $1 is not found."; tput sgr0;
+else
+        if [ $PID -eq 0 ]; then
+                echo -e "\E[31mContainer $1 is not started.";tput sgr0;
+        else
+                echo -e "\E[32mConnect to container $1."; tput sgr0;
+                /usr/bin/docker exec -i -t $1 /bin/bash -c "cd /root ; TERM=xterm HOME=/root /bin/bash"
+        fi;
+fi;
+}
+
+connect_func $@;' > $BIN_DIR/connect;
+	chmod +x $BIN_DIR/connect;
+	if [[ -z `id smilart 2>&1 | grep 'no such user'` ]]; then
+		chown smilart $BIN_DIR/connect;
+	fi;
+}
+
 ## Commands
 # This root?
 if [[ $EUID -ne 0 ]]; then
@@ -116,6 +141,12 @@ TEST_PATH=`echo $PATH | grep $BIN_DIR`;
 if [[ -z $TEST_PATH ]]; then
 	echo -e "\E[31mERROR: Not found path \"$BIN_DIR\" in environments \$PATH. Add.">&2;tput sgr0;
 	exit 1;
+fi;
+
+# Exist command 'connect'?
+if ! [[ -f $BIN_DIR/connect ]]; then
+        create_connect_func;
+	echo;
 fi;
 
 # Exist db?

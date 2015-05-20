@@ -22,8 +22,8 @@ Options:
 
 Environments:
 
-        DOCKER_PATH             Path docker, default: DOCKER_PATH=$DOCKER_PATH
+        DOCKER_PATH             Path docker, default: DOCKER_PATH=/usr/bin
 
-        SAM_DB_LIST             SAM database, default: SAM_DB_LIST=$SAM_DB_LIST
+        SAM_DB_LIST             SAM database, default: SAM_DB_LIST=/var/db/sam/list_installed
 
-        BIN_DIR                 Path to directory with executable files, default: BIN
+        BIN_DIR                 Path to directory with executable files, default: BIN_DIR=/opt/bin
