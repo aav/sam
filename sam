@@ -158,12 +158,11 @@ fi;
 
 # Exist db?
 SAM_DB_TABLE_INSTALL_IMAGES="Images";
-CREATE_DB="create table $SAM_DB_TABLE_INSTALL_IMAGES (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT);"
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_IMAGES'"` ]];then
         echo;
         echo "Not found db sam: $SAM_DB_SQLITE. Creating list."
 	echo;
-        sqlite3 $SAM_DB_SQLITE $CREATE_DB;
+        sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_IMAGES (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT);"
 fi;
 
 #List images in SQLite db
