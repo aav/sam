@@ -1,5 +1,5 @@
 #!/bin/bash
-
+#set -vx
 if [[ -z $DOCKER_PATH ]];then
         DOCKER_PATH='/usr/bin/docker';
 fi;
@@ -12,9 +12,12 @@ if [[ -z $BIN_DIR ]]; then
         BIN_DIR='/opt/bin'
 fi;
 
-IMAGE='';
+if [[ -z $SAM_DB_SQLITE ]];then
+        SAM_DB_SQLITE='/var/db/sam/smilart.db';
+fi;
+##Constant
 
-#set -xv
+IMAGE='';
 
 ## Functions
 # Copy META from image
@@ -23,7 +26,7 @@ copy_meta_func () {
 	TEMPLATE_DIR=`mktemp -d`;
 	$DOCKER_PATH run -i -t --rm -v $TEMPLATE_DIR:$TEMPLATE_DIR  --net=host --entrypoint="cp" $IMAGE -r /meta $TEMPLATE_DIR/meta 2>&1 > /dev/null;
 	if [[ $? -ne 0 ]]; then
-        	echo -e "\E[31mERROR: Directory '/meta' not found in image.">&2;tput sgr0;
+		echo -e "\E[31mERROR: Directory '/meta' not found in image.">&2;tput sgr0;
 		rm -rf $TEMPLATE_DIR;
 		exit 1;
 	fi;
@@ -37,9 +40,9 @@ uninstall_image_func () {
 	copy_meta_func;
 	pwd=$PWD;
 	cd $TEMPLATE_DIR/meta;
-        source $TEMPLATE_DIR/meta/uninstall;
+	source $TEMPLATE_DIR/meta/uninstall;
 	cd $pwd;
-        rm -rf $TEMPLATE_DIR;
+	rm -rf $TEMPLATE_DIR;
 	echo;
 }
 
@@ -49,7 +52,7 @@ install_image_func () {
 	echo -e "\E[32mInstalling image $IMAGE.";tput sgr0;
 	copy_meta_func;
 	pwd=$PWD;
-        cd $TEMPLATE_DIR/meta;
+	cd $TEMPLATE_DIR/meta;
 	echo;
 	source $TEMPLATE_DIR/meta/install;
 	cd $pwd;
@@ -58,36 +61,34 @@ install_image_func () {
 }
 
 # Save image in db function
-save_image_to_list_db_func () {
+save_image_to_db_sqlite_func () {
 	# Exist image in db?
 	TEST_EXIST=`echo "$IMAGE" | awk -F ':' 'NF--' | sed "s/ /:/g"`
-	TEST_EXIST=`cat $SAM_DB_LIST | grep $TEST_EXIST`;
-	if [[ -n $TEST_EXIST ]];then
-                echo -e "\E[31mERROR: Image exist in db. ">&2;tput sgr0;
+	if [[ -n `list_images_in_db_func | awk  'BEGIN {OFS = ":"} {print $3, $4}' | grep $TEST_EXIST` ]];then
+		echo -e "\E[31mERROR: Image exist in db. ">&2;tput sgr0;
 		echo "List exist images: ./sam -l"
 		echo;
-                exit 1;
-        fi;
-        echo  "Save image to db.";
+		exit 1;
+	fi;
+	echo  "Save image to db.";
 	# Collecting info in image
-        IMAGE_ID=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
-        IMAGE_VERSION=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
-        IMAGE_NAME=`$DOCKER_PATH images | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
-        
+	IMAGE_ID=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
+	IMAGE_VERSION=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
+	IMAGE_NAME=`$DOCKER_PATH images | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
 	# Edit db
-	echo -e "$IMAGE_ID\t$IMAGE_NAME\t$IMAGE_VERSION" >> $SAM_DB_LIST;
+	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_IMAGES (DockerId,ImageName,ImageVersion) values ('$IMAGE_ID','$IMAGE_NAME','$IMAGE_VERSION');";
+	unset TEST_EXIST;
+	unset IMAGE_ID;
+	unset IMAGE_VERSION;
+	unset IMAGE_NAME;
 }
 
 # Delete image in db function
-delete_image_to_list_db_func () {
-        echo  "Deleting image name in db.";
-
-        # Edit db
-        #set -i "/$IMAGE/d" $SAM_DB_LIST;
-	TFILE=`mktemp`;
-	cat $SAM_DB_LIST | grep -v "$IMAGE" > $TFILE;
-	mv $TFILE $SAM_DB_LIST;
-	unset TFILE;
+delete_image_to_db_func () {
+	echo  "Deleting image name in db.";
+	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_IMAGES where DockerId='$IMAGE'"	
+	# Edit db
+	
 }
 
 # Image latest?
@@ -149,14 +150,26 @@ if ! [[ -f $BIN_DIR/connect ]]; then
 	echo;
 fi;
 
-# Exist db?
-if ! [[ -f $SAM_DB_LIST ]];then
-        echo;
-        echo "Not found db sam: $SAM_DB_LIST. Creating list."
-        echo;
-        mkdir -p `echo $SAM_DB_LIST | awk -F '/' 'NF--' | sed 's/ /\//g'`;
-        touch $SAM_DB_LIST;
+# Exist command sqlite3
+if [[ -z `which sqlite3` ]]; then
+        echo -e "\E[31mERROR: Not found command sqlite3 in system.">&2;tput sgr0;
+        exit 1;
 fi;
+
+# Exist db?
+SAM_DB_TABLE_INSTALL_IMAGES="Images";
+CREATE_DB="create table $SAM_DB_TABLE_INSTALL_IMAGES (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT);"
+if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_IMAGES'"` ]];then
+        echo;
+        echo "Not found db sam: $SAM_DB_SQLITE. Creating list."
+	echo;
+        sqlite3 $SAM_DB_SQLITE $CREATE_DB;
+fi;
+
+#List images in SQLite db
+list_images_in_db_func () {
+	sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_INSTALL_IMAGES" | awk -F '|' '{print $1, $2, $3, $4}'
+}
 
 USAGE="
 Options:
@@ -183,7 +196,7 @@ do
 	l ) echo;
 	    echo "      List images:";
             echo;
-            cat $SAM_DB_LIST | awk -F '\t' 'BEGIN {OFS = ":"} {print $2, $3}';
+	    list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}'
             echo;
 	    exit 0
           ;;
@@ -212,7 +225,7 @@ do
 
         f ) if [ -f $OPTARG ]; then
 
-                ## Find image name to archive.
+                ## Find image name to archive
 		# Find file "repositories"
 		tar -xf $OPTARG repositories;
 		if [[ $? -ne 0 ]]; then
@@ -226,12 +239,11 @@ do
 		    echo -e "\E[31mERROR: Incorrect file 'repositories' in archive.">&2;tput sgr0;
 		    echo "Not found image name in file.";
 		    echo "May be incorrectly created archive.";
-		    exit 1;
+		    exit 1;[<32;1;38M
 		fi;
 		rm -f repositories;
-		##`
-		TEST_IMAGE=`cat $SAM_DB_LIST | awk -F '\t' ' {print $2,$3} ' | sed "s/ /:/g" | grep "$IMAGE"`;
-           	if [[ -z $TEST_IMAGE ]];then
+		##
+		if [[ -z `list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
                 	echo "Image not found in db."
 			# Load image
 			echo "Loading image $IMAGE."
@@ -241,7 +253,8 @@ do
 			    exit 1;
 			fi;
 			# Install image
-			save_image_to_list_db_func;
+			save_image_to_db_sqlite_func;
+#			save_image_to_list_db_func;
 			install_image_func;
 			echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
 			echo;
@@ -257,9 +270,8 @@ do
 
 	i ) IMAGE=$OPTARG;
 	   image_latest_func;
-	   # Installed image?
-	   TEST_IMAGE=`cat $SAM_DB_LIST | awk -F '\t' ' {print $2,$3} ' | sed "s/ /:/g" | grep "$IMAGE"`;
-	   if [[ -n $TEST_IMAGE ]];then
+	   # Installed image?	   
+	   if [[ -n `list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
 		echo -e "\E[31mERROR: Image found in db. Stop installation.">&2;tput sgr0;
 		exit 1;
 	   fi;
@@ -270,7 +282,7 @@ do
                 exit 1;
            fi;
 	   # Install image
-	   save_image_to_list_db_func;
+           save_image_to_db_sqlite_func;
 	   install_image_func;
 	   echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
 	   echo;
@@ -280,8 +292,7 @@ do
 	u ) IMAGE=$OPTARG;
            image_latest_func;
 	   # Installed image?
-           TEST_IMAGE=`cat $SAM_DB_LIST | awk -F '\t' ' {print $2,$3} ' | sed "s/ /:/g" | grep "$IMAGE"`;
-           if [[ -z $TEST_IMAGE ]];then
+           if [[ -z `list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
                 echo -e "\E[31mERROR: Image not found in db.">&2;tput sgr0;
                 exit 1;
 	   else
@@ -295,7 +306,7 @@ do
            fi;
 	   # Uninstall image
 	   uninstall_image_func;
-	   delete_image_to_list_db_func;
+	   delete_image_to_db_func;
            echo -e "\E[32mImage $IMAGE uninstalled.";tput sgr0;
            exit 0
 	  ;;
@@ -353,15 +364,14 @@ done
 if [[ -z $IMAGE ]];then 
 	IMAGE=$1;
 	image_latest_func;
-	TEST_IMAGE=`cat $SAM_DB_LIST | awk -F '\t' ' {print $2,$3} ' | sed "s/ /:/g" | grep "$IMAGE"`;
-        if [[ -n $TEST_IMAGE ]];then
+	if [[ -n `list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
             echo -e "\E[31mERROR: Image found in db. Stop installation.">&2;tput sgr0;
             exit 1;
         fi;
 	# Pull
 	$DOCKER_PATH pull $IMAGE;
 	if [[ $? -eq 0 ]]; then
-		save_image_to_list_db_func;
+		save_image_to_db_sqlite_func;
 		install_image_func;
 		echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
 		echo;
