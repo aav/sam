@@ -16,8 +16,6 @@ Options:
 
         -l                      List installed image
 
-        -L  [image]             List image versions from Docker Hub
-
         -h                      Help
 
 Environments:

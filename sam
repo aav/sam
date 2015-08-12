@@ -1,15 +1,12 @@
 #!/bin/bash
 #set -vx
-if [[ -z $DOCKER_PATH ]];then
-        DOCKER_PATH='/usr/bin/docker';
-fi;
 
 if [[ -z $SAM_DB_LIST ]];then
         SAM_DB_LIST='/var/db/sam/list_installed';
 fi;
 
 if [[ -z $BIN_DIR ]]; then
-        BIN_DIR='/opt/bin'
+        BIN_DIR='/opt/bin';
 fi;
 
 if [[ -z $SAM_DB_SQLITE ]];then
@@ -22,9 +19,9 @@ IMAGE='';
 ## Functions
 # Copy META from image
 copy_meta_func () {
-	# input: $IMAGE $DOCKER_PATH
+	# input: $IMAGE 
 	TEMPLATE_DIR=`mktemp -d`;
-	$DOCKER_PATH run -i -t --rm -v $TEMPLATE_DIR:$TEMPLATE_DIR  --net=host --entrypoint="cp" $IMAGE -r /meta $TEMPLATE_DIR/meta 2>&1 > /dev/null;
+	docker run -i -t --rm -v $TEMPLATE_DIR:$TEMPLATE_DIR  --net=host --entrypoint="cp" $IMAGE -r /meta $TEMPLATE_DIR/meta 2>&1 > /dev/null;
 	if [[ $? -ne 0 ]]; then
 		echo -e "\E[31mERROR: Directory '/meta' not found in image.">&2;tput sgr0;
 		rm -rf $TEMPLATE_DIR;
@@ -33,10 +30,11 @@ copy_meta_func () {
 	# output $pwd $TEMPLATE_DIR
 }
 
-# Uninstall image function
-uninstall_image_func () {
-	echo;	
-	echo -e "\E[32mUninstalling image $IMAGE.";tput sgr0;
+# Uninstall apps function
+uninstall_apps_func () {
+	#
+	echo;
+	echo -e "\E[32mUninstalling app $IMAGE.";tput sgr0;
 	copy_meta_func;
 	pwd=$PWD;
 	cd $TEMPLATE_DIR/meta;
@@ -46,10 +44,10 @@ uninstall_image_func () {
 	echo;
 }
 
-# Install image function
-install_image_func () {
+# Install apps function
+install_apps_func () {
 	echo;
-	echo -e "\E[32mInstalling image $IMAGE.";tput sgr0;
+	echo -e "\E[32mInstalling app $IMAGE.";tput sgr0;
 	copy_meta_func;
 	pwd=$PWD;
 	cd $TEMPLATE_DIR/meta;
@@ -57,24 +55,24 @@ install_image_func () {
 	source $TEMPLATE_DIR/meta/install;
 	cd $pwd;
 	rm -rf $TEMPLATE_DIR;
-	echo;	
+	echo;
 }
 
-# Save image in db function
-save_image_to_db_sqlite_func () {
-	# Exist image in db?
-	TEST_EXIST=`echo "$IMAGE" | awk -F ':' 'NF--' | sed "s/ /:/g"`
-	if [[ -n `list_images_in_db_func | awk  'BEGIN {OFS = ":"} {print $3, $4}' | grep $TEST_EXIST` ]];then
-		echo -e "\E[31mERROR: Image exist in db. ">&2;tput sgr0;
-		echo "List exist images: ./sam -l"
+# Save apps in db function
+save_apps_to_db_sqlite_func () {
+	# Exist app in db?
+	TEST_EXIST=`echo "$IMAGE" | awk -F ':' 'NF--' | sed "s/ /:/g"`;
+	if [[ -n `list_apps_in_db_func | awk  'BEGIN {OFS = ":"} {print $3, $4}' | grep $TEST_EXIST` ]];then
+		echo -e "\E[31mERROR: App exist in db. ">&2;tput sgr0;
+		echo "List exist apps: ./sam -l";
 		echo;
 		exit 1;
 	fi;
-	echo  "Save image to db.";
-	# Collecting info in image
-	IMAGE_ID=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
-	IMAGE_VERSION=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
-	IMAGE_NAME=`$DOCKER_PATH images | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
+	echo  "Save app to db.";
+	# Collecting info for app
+	IMAGE_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
+	IMAGE_VERSION=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
+	IMAGE_NAME=`docker images | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
 	# Edit db
 	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_IMAGES (DockerId,ImageName,ImageVersion) values ('$IMAGE_ID','$IMAGE_NAME','$IMAGE_VERSION');";
 	unset TEST_EXIST;
@@ -83,23 +81,22 @@ save_image_to_db_sqlite_func () {
 	unset IMAGE_NAME;
 }
 
-# Delete image in db function
-delete_image_to_db_func () {
-	echo  "Deleting image name in db.";
-	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_IMAGES where DockerId='$IMAGE'"	
+# Delete apps in db function
+delete_apps_to_db_func () {
+	echo  "Deleting app in db.";
+	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_IMAGES where DockerId='$IMAGE'";
 	
 }
 
 # Image latest?
 image_latest_func (){
-	VERSION_IMAGE=`echo "$IMAGE" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'`;
-	if [[ -z $VERSION_IMAGE ]];then
-                IMAGE="$IMAGE:latest"
-        fi;
+	if [[ -z `echo "$IMAGE" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'` ]];then
+		IMAGE="$IMAGE:latest";
+	fi;
 }
 
 create_connect_func() {
-	echo "Creating 'connect' function."
+	echo "Creating 'connect' function.";
 	echo '#!/bin/bash 
 
 connect_func(){
@@ -111,7 +108,7 @@ else
                 echo -e "\E[31mContainer $1 is not started.";tput sgr0;
         else
                 echo -e "\E[32mConnect to container $1."; tput sgr0;
-                /usr/bin/docker exec -i -t $1 /bin/bash -c "cd /root ; TERM=xterm HOME=/root /bin/bash"
+                /usr/bin/docker exec -i -t $1 /bin/bash -c "cd /root ; TERM=xterm HOME=/root /bin/bash";
         fi;
 fi;
 }
@@ -124,73 +121,78 @@ connect_func $@;' > $BIN_DIR/connect;
 }
 
 ### Commands
+#
+if [[ -z `which docker` ]]; then
+	echo -e "\E[31mERROR: Not found command 'docker' in system.">&2;tput sgr0;
+	exit 1;
+fi;
+
 # This root?
 if [[ $EUID -ne 0 ]]; then
-    echo -e "\E[31mThis script must be run as root">&2;tput sgr0;
-    exit 1
+	echo -e "\E[31mThis script must be run as root">&2;tput sgr0;
+	exit 1;
 fi
 
 # Exist BIN_DIR dirrectory ?
 if ! [[ -d $BIN_DIR ]]; then
-        echo "Creating $BIN_DIR.";
-        mkdir -p $BIN_DIR;
+	echo "Creating $BIN_DIR.";
+	mkdir -p $BIN_DIR;
 fi
 
 # Exist BIN_DIR in path ?
-TEST_PATH=`echo $PATH | grep $BIN_DIR`;
-if [[ -z $TEST_PATH ]]; then
+if [[ -z `echo $PATH | grep $BIN_DIR` ]]; then
 	echo -e "\E[31mERROR: Not found path \"$BIN_DIR\" in environments \$PATH. Add.">&2;tput sgr0;
 	exit 1;
 fi;
 
 # Exist command 'connect'?
 if ! [[ -f $BIN_DIR/connect ]]; then
-        create_connect_func;
+	create_connect_func;
 	echo;
 fi;
 
 # Exist command sqlite3
 if [[ -z `which sqlite3` ]]; then
-        echo -e "\E[31mERROR: Not found command sqlite3 in system.">&2;tput sgr0;
-        exit 1;
+	echo -e "\E[31mERROR: Not found command 'sqlite3' in system.">&2;tput sgr0;
+	exit 1;
 fi;
 
 # Exist db?
-SAM_DB_TABLE_INSTALL_IMAGES="Apps";
-if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_IMAGES'"` ]];then
-        echo;
-        echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_INSTALL_IMAGES."
+SAM_DB_TABLE_INSTALL_APPS="Apps";
+if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_APPS'"` ]];then
 	echo;
-        sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_IMAGES (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT);"
+	echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_INSTALL_APPS.";
+	echo;
+	sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT);";
 fi;
 
 SAM_DB_TABLE_REPOS="Repos";
-SAM_DB_TABLE_REPOS_URL="https://index.docker.io/v1/"
+SAM_DB_TABLE_REPOS_URL="https://index.docker.io/v1/";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_REPOS'"` ]];then
 	echo;
-        echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_REPOS."
-        echo;
-	sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);"
+	echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_REPOS.";
+	echo;
+	sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);";
 	echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL";
-	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','smilart','$SAM_DB_TABLE_REPOS_URL',' ',' ',' ');";	
+	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','smilart','$SAM_DB_TABLE_REPOS_URL',' ',' ',' ');";
 fi;
 unset SAM_DB_TABLE_REPOS_URL;
 
 #List in SQLite db
-list_images_in_db_func () {
-	sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_INSTALL_IMAGES" | awk -F '|' '{print $1, $2, $3, $4}'
+list_apps_in_db_func () {
+	sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_INSTALL_APPS" | awk -F '|' '{print $1, $2, $3, $4}';
 }
 
 list_repos_in_db_func () {
-        sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_REPOS" | awk -F '|' '{print $1, $2, $3, $4, $5, $6}'
+	sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_REPOS" | awk -F '|' '{print $1, $2, $3, $4, $5, $6}';
 }
 #Exist repos name?
 exist_repos_name_in_db_func() {
 	if [[ -z $SAM_DB_TABLE_REPOS_NAME ]];then
-                echo -e "\E[31mERROR: Variable from name repository is empty.">&2;tput sgr0;
-                exit 1;
-        fi;
-        if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS" | \
+		echo -e "\E[31mERROR: Variable from name repository is empty.">&2;tput sgr0;
+		exit 1;
+	fi;
+	if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS" | \
                         while read line; do \
                             if [ $line == $SAM_DB_TABLE_REPOS_NAME ];then \
                                 echo $line; \
@@ -198,66 +200,64 @@ exist_repos_name_in_db_func() {
                             fi; \
                         done;` ]];then
 		echo -e "\E[31mERROR: Repository name '$SAM_DB_TABLE_REPOS_NAME' is not found in db.">&2;tput sgr0;
-                echo "Existing repositories look with 'sam --repos-list'."
-                exit 1;
-        fi;
+		echo "Existing repositories look with 'sam --repos-list'.";
+		exit 1;
+	fi;
 }	
 
 USAGE="
 Options:
 	-f  [archive.tar]	Load image from tar archive
-	-i  [image]:[version]	Install selected docker image
-	-u  [image]:[version]	Uninstall selected container
+	-i  [image]:[version]	Install selected application
+	-u  [image]:[version]	Uninstall selected application
 	-x  [-f:-i:-u] 		Debug mode
-	-I  [image]:[version]	Print image info
+	-I  [image]:[version]	Print application info
 	-c  [image]:[version]	Copy metadata from image to directory /tmp
-	-l  			List installed image
-	-L  [image]		List image versions from Docker Hub
+	-l  			List installed applications
 	-h           		Help
 
 Environments:
-	DOCKER_PATH		Path docker, default: DOCKER_PATH=$DOCKER_PATH
 	SAM_DB_LIST		SAM database, default: SAM_DB_LIST=$SAM_DB_LIST
 	BIN_DIR			Path to directory with executable files, default: BIN_DIR=$BIN_DIR	
 ";
 
-while getopts "L:li:f:u:c:xI:h-:" OPTION
+while getopts "li:f:u:c:xI:h-:" OPTION
 do
     case $OPTION in
 
 	l ) echo;
 	    echo "      List apps:";
-            echo;
-	    list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}'
-            echo;
-	    exit 0
-          ;;
-
-	L ) ping -c 1 -n -q registry.hub.docker.com > /dev/null;
-	    if [ $? -ne "0" ]; then
-		echo -e "\E[31mERROR: Host registry.hub.docker.com is unknown.">&2;tput sgr0;
-		exit 1;
-	    fi;
-	    LIST_VERSIONS=`curl "https://registry.hub.docker.com//v1/repositories/$OPTARG/tags" -f -s | sed 's/,/,\n/g' | grep name | awk -F '"' '{print $4}'`
-	    if [ $? -ne "0" ]; then
-                echo -e "\E[31mERROR: Image name is unknown.">&2;tput sgr0;
-                exit 1;
-	    else
-		echo;
-		echo "      List versions:";
-		echo;
-		echo "$LIST_VERSIONS" | sed 's/ /\n/g' | sed -e 's#^#'"$OPTARG"':#g';
-		echo;
-            fi;
+	    echo;
+	    list_apps_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}';
+	    echo;
 	    exit 0
 	  ;;
+
+#	L ) ping -c 1 -n -q registry.hub.docker.com > /dev/null;
+#	    if [ $? -ne "0" ]; then
+#		echo -e "\E[31mERROR: Host registry.hub.docker.com is unknown.">&2;tput sgr0;
+#		exit 1;
+#	    fi;
+#	    LIST_VERSIONS=`curl "https://registry.hub.docker.com//v1/repositories/$OPTARG/tags" -f -s | sed 's/,/,\n/g' | grep name | awk -F '"' '{print $4}'`;
+#	    if [ $? -ne "0" ]; then
+#		echo -e "\E[31mERROR: Image name is unknown.">&2;tput sgr0;
+#		exit 1;
+#	    else
+#		echo;
+#		echo "      List versions:";
+#		echo;
+#		echo "$LIST_VERSIONS" | sed 's/ /\n/g' | sed -e 's#^#'"$OPTARG"':#g';
+#		echo;
+#	    fi;
+#	    exit 0
+#	  ;;
 
 	x ) set -vx
 	  ;;
 
-        f ) if [ -f $OPTARG ]; then
+	f ) if [ -f $OPTARG ]; then
 
-                ## Find image name to archive
+		## Find image name to archive
 		# Find file "repositories"
 		tar -xf $OPTARG repositories;
 		if [[ $? -ne 0 ]]; then
@@ -266,32 +266,31 @@ do
 		    exit 1;
 		fi;
 		# Correct file "repositories"
-                IMAGE=`cat repositories | awk -F '"' ' {print $2,$4} ' | sed "s/ /:/g"`;
+		IMAGE=`cat repositories | awk -F '"' ' {print $2,$4} ' | sed "s/ /:/g"`;
 		if [[ -z $IMAGE ]]; then
 		    echo -e "\E[31mERROR: Incorrect file 'repositories' in archive.">&2;tput sgr0;
 		    echo "Not found image name in file.";
 		    echo "May be incorrectly created archive.";
-		    exit 1;[<32;1;38M
+		    exit 1;
 		fi;
 		rm -f repositories;
 		##
-		if [[ -z `list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
-                	echo "Image not found in db."
+		if [[ -z `list_apps_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
+			echo "App not found in db.";
 			# Load image
-			echo "Loading image $IMAGE."
-			$DOCKER_PATH load -i $OPTARG
-			if [[ $? -ne 0 ]]; then	
+			echo "Loading image $IMAGE.";
+			docker load -i $OPTARG;
+			if [[ $? -ne 0 ]]; then
 			    echo -e "\E[31mERROR: Loading image.">&2;tput sgr0;
 			    exit 1;
 			fi;
-			# Install image
-			save_image_to_db_sqlite_func;
-#			save_image_to_list_db_func;
-			install_image_func;
-			echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
+			# Install app
+			save_apps_to_db_sqlite_func;
+			install_apps_func;
+			echo -e "\E[32mApp $IMAGE installed.";tput sgr0;
 			echo;
 		else 
-			echo -e "\E[31mERROR: Image exist in db.">&2;tput sgr0;
+			echo -e "\E[31mERROR: App exist in db.">&2;tput sgr0;
 			exit 1;
 	   	fi;
 	   else
@@ -302,169 +301,170 @@ do
 
 	i ) IMAGE=$OPTARG;
 	   image_latest_func;
-	   # Installed image?	   
-	   if [[ -n `list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
-		echo -e "\E[31mERROR: Image found in db. Stop installation.">&2;tput sgr0;
+	   # Installed app?
+	   if [[ -n `list_apps_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
+		echo -e "\E[31mERROR: App found in db. Stop installation.">&2;tput sgr0;
 		exit 1;
 	   fi;
 	   # Exist image?
-	   TEST_IMAGE=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"`;
+	   TEST_IMAGE=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"`;
 	   if [[ -z $TEST_IMAGE ]];then
-                echo -e "\E[31mERROR: Image not found in registry docker. Stop installation.">&2;tput sgr0;
-                exit 1;
-           fi;
-	   # Install image
-           save_image_to_db_sqlite_func;
-	   install_image_func;
-	   echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
+		echo -e "\E[31mERROR: Image not found in registry docker. Stop installation.">&2;tput sgr0;
+		exit 1;
+	   fi;
+	   # Install app
+	   save_apps_to_db_sqlite_func;
+	   install_apps_func;
+	   echo -e "\E[32mApp $IMAGE installed.";tput sgr0;
 	   echo;
 	   exit 0
 	  ;;
 	
 	u ) IMAGE=$OPTARG;
-           image_latest_func;
-	   # Installed image?
-           if [[ -z `list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
-                echo -e "\E[31mERROR: Image not found in db.">&2;tput sgr0;
-                exit 1;
+	   image_latest_func;
+	   # Installed app?
+	   if [[ -z `list_apps_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
+		echo -e "\E[31mERROR: App not found in db.">&2;tput sgr0;
+		exit 1;
 	   else
-		IMAGE=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`
-           fi;
-           # Exist image?  
-           TEST_IMAGE=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $3} ' | grep "$IMAGE"`;
-           if [[ -z $TEST_IMAGE ]];then
-                echo -e "\E[31mERROR: Image not found in registry docker.">&2;tput sgr0;
-                exit 1;
-           fi;
-	   # Uninstall image
-	   uninstall_image_func;
-	   delete_image_to_db_func;
-           echo -e "\E[32mImage $IMAGE uninstalled.";tput sgr0;
-           exit 0
+		IMAGE=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
+	   fi;
+	   # Exist app?
+	   TEST_IMAGE=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $3} ' | grep "$IMAGE"`;
+	   if [[ -z $TEST_IMAGE ]];then
+		echo -e "\E[31mERROR: Image not found in registry docker.">&2;tput sgr0;
+		exit 1;
+	   fi;
+	   # Uninstall app
+	   uninstall_apps_func;
+	   delete_apps_to_db_func;
+	   echo -e "\E[32mApp $IMAGE uninstalled.";tput sgr0;
+	   exit 0
 	  ;;
-        c ) IMAGE=$OPTARG;
+	
+	c ) IMAGE=$OPTARG;
 	    image_latest_func;
 	    # Exist image?
-            TEST_IMAGE=`$DOCKER_PATH images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"`;
-            if [[ -z $TEST_IMAGE ]];then
-                echo -e "\E[31mERROR: Image not found in registry docker. Stop installation.">&2;tput sgr0;
-                exit 1;
-            fi;
+	    TEST_IMAGE=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"`;
+	    if [[ -z $TEST_IMAGE ]];then
+		echo -e "\E[31mERROR: Image not found in registry docker. Stop installation.">&2;tput sgr0;
+		exit 1;
+	    fi;
 	    copy_meta_func;
-            pwd=$PWD;
-	    IMAGE=`echo $IMAGE | sed "s/\//./g"`
+	    pwd=$PWD;
+	    IMAGE=`echo $IMAGE | sed "s/\//./g"`;
 	    echo;
 	    # Remove exist dirrectory
 	    if [[ -d /tmp/meta_$IMAGE ]];then
 		echo "Removing old dirrectory."
-                rm -r /tmp/meta_$IMAGE;
-            fi;
-	    mv $TEMPLATE_DIR/meta /tmp/meta_$IMAGE
+		rm -r /tmp/meta_$IMAGE;
+	    fi;
+	    mv $TEMPLATE_DIR/meta /tmp/meta_$IMAGE;
 	    cd $pwd;
 	    rm -r $TEMPLATE_DIR;
-	    echo "Meta files are moved to a folder /tmp/meta_$IMAGE"
+	    echo "Meta files are moved to a folder /tmp/meta_$IMAGE";
 	    echo;
 	    exit 0
-	   ;;
-	    
-
+	  ;;
+	
 	I ) IMAGE=$OPTARG;
 	    image_latest_func;
 	    copy_meta_func;
 	    pwd=$PWD;
-            cd $TEMPLATE_DIR/meta;
-            echo;
+	    cd $TEMPLATE_DIR/meta;
+	    echo;
 	    cat DESCRIPTION;
 	    echo;
-	    echo "    Time of creation:"
-	    cat BUILDSTAMP; 
-            cd $pwd;
-            rm -rf $TEMPLATE_DIR;
-            echo;
+	    echo "    Time of creation:";
+	    cat BUILDSTAMP;
+	    cd $pwd;
+	    rm -rf $TEMPLATE_DIR;
+	    echo;
 	    exit 0
 	  ;;
 
-        h ) echo "$USAGE"; 
+	h ) echo "$USAGE"; 
 	    exit 0
-          ;;
+	  ;;
 	
 	-)  case "${OPTARG}" in
 		help)		echo "$USAGE";
-		        	exit 0
-	        ;;
-		repos-list)	echo;
-            			echo "      List repositories:";
-            			echo;
-            			sqlite3 $SAM_DB_SQLITE "SELECT Id,ReposFlag,ReposName,ReposURL,ReposUser FROM $SAM_DB_TABLE_REPOS" | column -t -s '|' ; 
-            			echo;
-            			exit 0
+				exit 0
 		;;
-                repos-add)	echo;
+		repos-list)	echo;
+				echo "      List repositories:";
+				echo;
+				sqlite3 $SAM_DB_SQLITE "SELECT Id,ReposFlag,ReposName,ReposURL,ReposUser FROM $SAM_DB_TABLE_REPOS" | column -t -s '|' ; 
+				echo;
+				exit 0
+		;;
+		repos-add)	echo;
 				echo "      Adding repository:";
 				echo;
 				read -e -p "Repository Url: " SAM_DB_TABLE_REPOS_URL;
 				if [[ -z $SAM_DB_TABLE_REPOS_URL ]];then
-                                        echo -e "\E[31mERROR: Variable from Url is empty.">&2;tput sgr0;
-                                        exit 1;
-                                fi;
+					echo -e "\E[31mERROR: Variable from Url is empty.">&2;tput sgr0;
+					exit 1;
+				fi;
 				read -e -p "Name repository: " SAM_DB_TABLE_REPOS_NAME;
-			        if [[ -z $SAM_DB_TABLE_REPOS_NAME ]];then
-        			        echo -e "\E[31mERROR: Variable from name repository is empty.">&2;tput sgr0;
-                			exit 1;
-        			fi;	
+				if [[ -z $SAM_DB_TABLE_REPOS_NAME ]];then
+					echo -e "\E[31mERROR: Variable from name repository is empty.">&2;tput sgr0;
+					exit 1;
+				fi;	
 				
 				read -e -p "Username: " SAM_DB_TABLE_REPOS_USER; 
 				read -s -p "Password: " SAM_DB_TABLE_REPOS_PASS; echo;
 				SAM_DB_TABLE_REPOS_PASS=`echo "$SAM_DB_TABLE_REPOS_PASS" | base64`;
 				read -e -p "Email: "    SAM_DB_TABLE_REPOS_EMAIL;
-	
+				
 				#save in db
 				echo;
 				echo "Saving in db.";
 				sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values (' ','$SAM_DB_TABLE_REPOS_NAME','$SAM_DB_TABLE_REPOS_URL','$SAM_DB_TABLE_REPOS_USER','$SAM_DB_TABLE_REPOS_PASS','$SAM_DB_TABLE_REPOS_EMAIL');";
-                                unset SAM_DB_TABLE_REPOS_URL;
+				unset SAM_DB_TABLE_REPOS_URL;
 				unset SAM_DB_TABLE_REPOS_NAME;
 				unset SAM_DB_TABLE_REPOS_USER;
 				unset SAM_DB_TABLE_REPOS_PASS;
 				unset SAM_DB_TABLE_REPOS_EMAIL;
 				exit 0
-                ;;
-                repos-delete)	echo;
+		;;
+		repos-delete)	echo;
 				echo "      Deleting repository:";
 				echo;
 				read -e -p "Enter name of repository: " SAM_DB_TABLE_REPOS_NAME;
-                                exist_repos_name_in_db_func;
+				exist_repos_name_in_db_func;
 				
 				#delete in db
 				echo;
 				echo "Deleting in db.";
-				sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where ReposName='$SAM_DB_TABLE_REPOS_NAME'";				     unset SAM_DB_TABLE_REPOS_NAME;
+				sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where ReposName='$SAM_DB_TABLE_REPOS_NAME'";
+				unset SAM_DB_TABLE_REPOS_NAME;
 				exit 0
-                ;;
-                repos-default)	echo;
+		;;
+		repos-default)	echo;
 				echo "      Selecting default repository:";
-                                echo;
-                                read -e -p "Enter name of repository: " SAM_DB_TABLE_REPOS_NAME;
-                                exist_repos_name_in_db_func;
-
+				echo;
+				read -e -p "Enter name of repository: " SAM_DB_TABLE_REPOS_NAME;
+				exist_repos_name_in_db_func;
+				
 				#reset column
-				echo;   
-                                echo "Saving in db.";
+				echo;
+				echo "Saving in db.";
 				sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=' '";
 				#add flag
 				sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where ReposName='$SAM_DB_TABLE_REPOS_NAME'";
-                                unset SAM_DB_TABLE_REPOS_NAME;
+				unset SAM_DB_TABLE_REPOS_NAME;
 				exit 0
-                ;;
-        	*)		if [ "$OPTERR" != 1 ] || [ "${optspec:0:1}" = ":" ]; then
-                		    echo -e "\E[31mERROR: Non-option argument: '-${OPTARG}'">&2;tput sgr0;
+		;;
+		*)		if [ "$OPTERR" != 1 ] || [ "${optspec:0:1}" = ":" ]; then
+				    echo -e "\E[31mERROR: Non-option argument: '-${OPTARG}'">&2;tput sgr0;
 				    exit 1;
 				fi
-                ;;
+		;;
 	    esac
-	    ;;	
-
-        *) echo
+	    ;;
+	
+	*) echo
 	  ;;
     esac
 done
@@ -472,19 +472,19 @@ done
 if [[ -z $IMAGE ]];then 
 	IMAGE=$1;
 	image_latest_func;
-	if [[ -n `list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
-            echo -e "\E[31mERROR: Image found in db. Stop installation.">&2;tput sgr0;
-            exit 1;
-        fi;
+	if [[ -n `list_apps_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}' | grep "$IMAGE"` ]];then
+	    echo -e "\E[31mERROR: App found in db. Stop installation.">&2;tput sgr0;
+	    exit 1;
+	fi;
 	# Pull
-	$DOCKER_PATH pull $IMAGE;
+	docker pull $IMAGE;
 	if [[ $? -eq 0 ]]; then
-		save_image_to_db_sqlite_func;
-		install_image_func;
-		echo -e "\E[32mImage $IMAGE installed.";tput sgr0;
+		save_apps_to_db_sqlite_func;
+		install_apps_func;
+		echo -e "\E[32mApp $IMAGE installed.";tput sgr0;
 		echo;
 	else
-        	echo -e "\E[31mNot found image \"$1\"." >&2;tput sgr0;
+		echo -e "\E[31mNot found image \"$1\" in docker registry." >&2;tput sgr0;
 		exit 1;
 	fi;
 fi;
