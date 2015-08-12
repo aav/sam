@@ -156,7 +156,7 @@ if [[ -z `which sqlite3` ]]; then
 fi;
 
 # Exist db?
-SAM_DB_TABLE_INSTALL_IMAGES="Images";
+SAM_DB_TABLE_INSTALL_IMAGES="Apps";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_IMAGES'"` ]];then
         echo;
         echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_INSTALL_IMAGES."
@@ -226,7 +226,7 @@ do
     case $OPTION in
 
 	l ) echo;
-	    echo "      List images:";
+	    echo "      List apps:";
             echo;
 	    list_images_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}'
             echo;
