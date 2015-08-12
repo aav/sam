@@ -87,7 +87,6 @@ save_image_to_db_sqlite_func () {
 delete_image_to_db_func () {
 	echo  "Deleting image name in db.";
 	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_IMAGES where DockerId='$IMAGE'"	
-	# Edit db
 	
 }
 
@@ -124,7 +123,7 @@ connect_func $@;' > $BIN_DIR/connect;
 	fi;
 }
 
-## Commands
+### Commands
 # This root?
 if [[ $EUID -ne 0 ]]; then
     echo -e "\E[31mThis script must be run as root">&2;tput sgr0;
@@ -160,15 +159,49 @@ fi;
 SAM_DB_TABLE_INSTALL_IMAGES="Images";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_IMAGES'"` ]];then
         echo;
-        echo "Not found db sam: $SAM_DB_SQLITE. Creating list."
+        echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_INSTALL_IMAGES."
 	echo;
         sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_IMAGES (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT);"
 fi;
 
-#List images in SQLite db
+SAM_DB_TABLE_REPOS="Repos";
+SAM_DB_TABLE_REPOS_URL="https://index.docker.io/v1/"
+if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_REPOS'"` ]];then
+	echo;
+        echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_REPOS."
+        echo;
+	sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);"
+	echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL";
+	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','smilart','$SAM_DB_TABLE_REPOS_URL',' ',' ',' ');";	
+fi;
+unset SAM_DB_TABLE_REPOS_URL;
+
+#List in SQLite db
 list_images_in_db_func () {
 	sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_INSTALL_IMAGES" | awk -F '|' '{print $1, $2, $3, $4}'
 }
+
+list_repos_in_db_func () {
+        sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_REPOS" | awk -F '|' '{print $1, $2, $3, $4, $5, $6}'
+}
+#Exist repos name?
+exist_repos_name_in_db_func() {
+	if [[ -z $SAM_DB_TABLE_REPOS_NAME ]];then
+                echo -e "\E[31mERROR: Variable from name repository is empty.">&2;tput sgr0;
+                exit 1;
+        fi;
+        if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS" | \
+                        while read line; do \
+                            if [ $line == $SAM_DB_TABLE_REPOS_NAME ];then \
+                                echo $line; \
+                                break; \
+                            fi; \
+                        done;` ]];then
+		echo -e "\E[31mERROR: Repository name '$SAM_DB_TABLE_REPOS_NAME' is not found in db.">&2;tput sgr0;
+                echo "Existing repositories look with 'sam --repos-list'."
+                exit 1;
+        fi;
+}	
 
 USAGE="
 Options:
@@ -188,7 +221,7 @@ Environments:
 	BIN_DIR			Path to directory with executable files, default: BIN_DIR=$BIN_DIR	
 ";
 
-while getopts "L:li:f:u:c:xI:h" OPTION
+while getopts "L:li:f:u:c:xI:h-:" OPTION
 do
     case $OPTION in
 
@@ -354,6 +387,82 @@ do
         h ) echo "$USAGE"; 
 	    exit 0
           ;;
+	
+	-)  case "${OPTARG}" in
+		help)		echo "$USAGE";
+		        	exit 0
+	        ;;
+		repos-list)	echo;
+            			echo "      List repositories:";
+            			echo;
+            			sqlite3 $SAM_DB_SQLITE "SELECT Id,ReposFlag,ReposName,ReposURL,ReposUser FROM $SAM_DB_TABLE_REPOS" | column -t -s '|' ; 
+            			echo;
+            			exit 0
+		;;
+                repos-add)	echo;
+				echo "      Adding repository:";
+				echo;
+				read -e -p "Repository Url: " SAM_DB_TABLE_REPOS_URL;
+				if [[ -z $SAM_DB_TABLE_REPOS_URL ]];then
+                                        echo -e "\E[31mERROR: Variable from Url is empty.">&2;tput sgr0;
+                                        exit 1;
+                                fi;
+				read -e -p "Name repository: " SAM_DB_TABLE_REPOS_NAME;
+			        if [[ -z $SAM_DB_TABLE_REPOS_NAME ]];then
+        			        echo -e "\E[31mERROR: Variable from name repository is empty.">&2;tput sgr0;
+                			exit 1;
+        			fi;	
+				
+				read -e -p "Username: " SAM_DB_TABLE_REPOS_USER; 
+				read -s -p "Password: " SAM_DB_TABLE_REPOS_PASS; echo;
+				SAM_DB_TABLE_REPOS_PASS=`echo "$SAM_DB_TABLE_REPOS_PASS" | base64`;
+				read -e -p "Email: "    SAM_DB_TABLE_REPOS_EMAIL;
+	
+				#save in db
+				echo;
+				echo "Saving in db.";
+				sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values (' ','$SAM_DB_TABLE_REPOS_NAME','$SAM_DB_TABLE_REPOS_URL','$SAM_DB_TABLE_REPOS_USER','$SAM_DB_TABLE_REPOS_PASS','$SAM_DB_TABLE_REPOS_EMAIL');";
+                                unset SAM_DB_TABLE_REPOS_URL;
+				unset SAM_DB_TABLE_REPOS_NAME;
+				unset SAM_DB_TABLE_REPOS_USER;
+				unset SAM_DB_TABLE_REPOS_PASS;
+				unset SAM_DB_TABLE_REPOS_EMAIL;
+				exit 0
+                ;;
+                repos-delete)	echo;
+				echo "      Deleting repository:";
+				echo;
+				read -e -p "Enter name of repository: " SAM_DB_TABLE_REPOS_NAME;
+                                exist_repos_name_in_db_func;
+				
+				#delete in db
+				echo;
+				echo "Deleting in db.";
+				sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where ReposName='$SAM_DB_TABLE_REPOS_NAME'";				     unset SAM_DB_TABLE_REPOS_NAME;
+				exit 0
+                ;;
+                repos-default)	echo;
+				echo "      Selecting default repository:";
+                                echo;
+                                read -e -p "Enter name of repository: " SAM_DB_TABLE_REPOS_NAME;
+                                exist_repos_name_in_db_func;
+
+				#reset column
+				echo;   
+                                echo "Saving in db.";
+				sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=' '";
+				#add flag
+				sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where ReposName='$SAM_DB_TABLE_REPOS_NAME'";
+                                unset SAM_DB_TABLE_REPOS_NAME;
+				exit 0
+                ;;
+        	*)		if [ "$OPTERR" != 1 ] || [ "${optspec:0:1}" = ":" ]; then
+                		    echo -e "\E[31mERROR: Non-option argument: '-${OPTARG}'">&2;tput sgr0;
+				    exit 1;
+				fi
+                ;;
+	    esac
+	    ;;	
 
         *) echo
 	  ;;
