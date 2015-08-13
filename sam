@@ -167,14 +167,14 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
 fi;
 
 SAM_DB_TABLE_REPOS="Repos";
-SAM_DB_TABLE_REPOS_URL="https://index.docker.io/v1/";
+SAM_DB_TABLE_REPOS_URL="smilart";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_REPOS'"` ]];then
 	echo;
 	echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_REPOS.";
 	echo;
 	sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);";
 	echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL";
-	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','smilart','$SAM_DB_TABLE_REPOS_URL',' ',' ',' ');";
+	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','official','$SAM_DB_TABLE_REPOS_URL',' ',' ',' ');";
 fi;
 unset SAM_DB_TABLE_REPOS_URL;
 
@@ -430,7 +430,13 @@ do
 				echo;
 				read -e -p "Enter name of repository: " SAM_DB_TABLE_REPOS_NAME;
 				exist_repos_name_in_db_func;
-				
+
+				#Default repository?
+				if [[ -n `sqlite3 $SAM_DB_SQLITE "select ReposFlag from $SAM_DB_TABLE_REPOS where ReposName='$SAM_DB_TABLE_REPOS_NAME'"` ]]; then
+					echo -e "\E[31mERROR: Repository '$SAM_DB_TABLE_REPOS_NAME' is default.">&2;tput sgr0;
+            				exit 1;
+				fi;
+
 				#delete in db
 				echo;
 				echo "Deleting in db.";
