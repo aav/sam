@@ -74,7 +74,7 @@ save_apps_to_db_sqlite_func () {
 	IMAGE_VERSION=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
 	IMAGE_NAME=`docker images --no-trunc | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
 	# Edit db
-	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion) values ('$IMAGE_ID','$IMAGE_NAME','$IMAGE_VERSION');";
+	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos) values ('$IMAGE_ID','$IMAGE_NAME','$IMAGE_VERSION','0');";
 	unset TEST_EXIST;
 	unset IMAGE_ID;
 	unset IMAGE_VERSION;
@@ -163,7 +163,7 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
 	echo;
 	echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_INSTALL_APPS.";
 	echo;
-	sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT);";
+	sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT,ImageRepos INTEGER);";
 fi;
 
 SAM_DB_TABLE_REPOS="Repos";
@@ -180,7 +180,7 @@ unset SAM_DB_TABLE_REPOS_URL;
 
 #List in SQLite db
 list_apps_in_db_func () {
-	sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_INSTALL_APPS" | awk -F '|' '{print $1, $2, $3, $4}';
+	sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_INSTALL_APPS" | awk -F '|' '{print $1, $2, $3, $4, $5}';
 }
 
 list_repos_in_db_func () {
@@ -203,7 +203,7 @@ exist_repos_name_in_db_func() {
 		echo "Existing repositories look with 'sam --repos-list'.";
 		exit 1;
 	fi;
-}	
+}
 
 USAGE="
 Options:
@@ -214,11 +214,11 @@ Options:
 	-I  [image]:[version]	Print application info
 	-c  [image]:[version]	Copy metadata from image to directory /tmp
 	-l  			List installed applications
-	-h           		Help
+	-h  			Help
 
 Environments:
 	SAM_DB_LIST		SAM database, default: SAM_DB_LIST=$SAM_DB_LIST
-	BIN_DIR			Path to directory with executable files, default: BIN_DIR=$BIN_DIR	
+	BIN_DIR			Path to directory with executable files, default: BIN_DIR=$BIN_DIR
 ";
 
 while getopts "li:f:u:c:xI:h-:" OPTION
@@ -228,29 +228,34 @@ do
 	l ) echo;
 	    echo "      List apps:";
 	    echo;
-	    list_apps_in_db_func | awk 'BEGIN {OFS = ":"} {print $3, $4}';
+	    # Print repository
+	    list_apps_in_db_func | awk '{print $3, $4, $5}' | \
+		while read line; do \
+		    SAM_DB_IMAGE_NAME=`echo $line | awk '{print $1}'`;
+		    SAM_DB_IMAGE_VERSION=`echo $line | awk '{print $2}'`;
+		    SAM_DB_IMAGE_REPOS=`echo $line | awk '{print $3}'`;
+		    PRINT_IMAGE_REPOS='';
+		    # Number?
+		    if [[ `expr "$SAM_DB_IMAGE_REPOS" : '-\?[0-9]\+$'` == '0' ]]; then
+			PRINT_IMAGE_REPOS='unknown';
+		    else
+			#Exist number?
+		       case "$SAM_DB_IMAGE_REPOS" in
+			"0")	PRINT_IMAGE_REPOS='archive'
+			    ;;
+			*)	if [[ `sqlite3 $SAM_DB_SQLITE "SELECT id from $SAM_DB_TABLE_REPOS" | grep -w $SAM_DB_IMAGE_REPOS` != $SAM_DB_IMAGE_REPOS ]]; then
+				    PRINT_IMAGE_REPOS='unknown';
+				else
+				    PRINT_IMAGE_REPOS=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE id='$SAM_DB_IMAGE_REPOS'"`;
+				fi
+			    ;;
+		       esac;
+		    fi;
+		    echo "$SAM_DB_IMAGE_NAME:$SAM_DB_IMAGE_VERSION $PRINT_IMAGE_REPOS" | column -t;
+		done
 	    echo;
 	    exit 0
 	  ;;
-
-#	L ) ping -c 1 -n -q registry.hub.docker.com > /dev/null;
-#	    if [ $? -ne "0" ]; then
-#		echo -e "\E[31mERROR: Host registry.hub.docker.com is unknown.">&2;tput sgr0;
-#		exit 1;
-#	    fi;
-#	    LIST_VERSIONS=`curl "https://registry.hub.docker.com//v1/repositories/$OPTARG/tags" -f -s | sed 's/,/,\n/g' | grep name | awk -F '"' '{print $4}'`;
-#	    if [ $? -ne "0" ]; then
-#		echo -e "\E[31mERROR: Image name is unknown.">&2;tput sgr0;
-#		exit 1;
-#	    else
-#		echo;
-#		echo "      List versions:";
-#		echo;
-#		echo "$LIST_VERSIONS" | sed 's/ /\n/g' | sed -e 's#^#'"$OPTARG"':#g';
-#		echo;
-#	    fi;
-#	    exit 0
-#	  ;;
 
 	x ) set -vx
 	  ;;
@@ -292,7 +297,7 @@ do
 		else 
 			echo -e "\E[31mERROR: App exist in db.">&2;tput sgr0;
 			exit 1;
-	   	fi;
+		fi;
 	   else
 		echo -e "\E[31m$0: Archive image is not defined." >&2;tput sgr0;
 		exit 1;
