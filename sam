@@ -70,11 +70,11 @@ save_apps_to_db_sqlite_func () {
 	fi;
 	echo  "Save app to db.";
 	# Collecting info for app
-	IMAGE_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
-	IMAGE_VERSION=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
-	IMAGE_NAME=`docker images | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
+	IMAGE_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
+	IMAGE_VERSION=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
+	IMAGE_NAME=`docker images --no-trunc | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
 	# Edit db
-	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_IMAGES (DockerId,ImageName,ImageVersion) values ('$IMAGE_ID','$IMAGE_NAME','$IMAGE_VERSION');";
+	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion) values ('$IMAGE_ID','$IMAGE_NAME','$IMAGE_VERSION');";
 	unset TEST_EXIST;
 	unset IMAGE_ID;
 	unset IMAGE_VERSION;
@@ -84,7 +84,7 @@ save_apps_to_db_sqlite_func () {
 # Delete apps in db function
 delete_apps_to_db_func () {
 	echo  "Deleting app in db.";
-	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_IMAGES where DockerId='$IMAGE'";
+	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$IMAGE'";
 	
 }
 
@@ -307,8 +307,7 @@ do
 		exit 1;
 	   fi;
 	   # Exist image?
-	   TEST_IMAGE=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"`;
-	   if [[ -z $TEST_IMAGE ]];then
+	   if [[ -z `docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"` ]];then
 		echo -e "\E[31mERROR: Image not found in registry docker. Stop installation.">&2;tput sgr0;
 		exit 1;
 	   fi;
@@ -327,11 +326,10 @@ do
 		echo -e "\E[31mERROR: App not found in db.">&2;tput sgr0;
 		exit 1;
 	   else
-		IMAGE=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
+		IMAGE=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
 	   fi;
 	   # Exist app?
-	   TEST_IMAGE=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $3} ' | grep "$IMAGE"`;
-	   if [[ -z $TEST_IMAGE ]];then
+	   if [[ -z `docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $3} ' | grep "$IMAGE"` ]];then
 		echo -e "\E[31mERROR: Image not found in registry docker.">&2;tput sgr0;
 		exit 1;
 	   fi;
@@ -345,8 +343,7 @@ do
 	c ) IMAGE=$OPTARG;
 	    image_latest_func;
 	    # Exist image?
-	    TEST_IMAGE=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"`;
-	    if [[ -z $TEST_IMAGE ]];then
+	    if [[ -z `docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE"` ]];then
 		echo -e "\E[31mERROR: Image not found in registry docker. Stop installation.">&2;tput sgr0;
 		exit 1;
 	    fi;
