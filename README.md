@@ -1,27 +1,25 @@
 # SMILART APPLICATION MANAGER #
 
-Options:
+  Usage:
+        sam [--global-options] <command> [--command-options] [arguments]
 
-        -f  [archive.tar]       Load image from tar archive
+  Global Options:
+        --help, -h              Help.
+        --debug, -x             Debug mode.
 
-        -i  [image]:[version]   Install selected docker image
 
-        -u  [image]:[version]   Uninstall selected container
+  Commands:
+        help, ?                 Print help.
+     
+     Software Management:
+        install, in             Install applications.
+        installfile             Install applications from archive.
+        remove, rm              Remove applications.
+        list                    List installed applications.
+        info                    Print application info.
 
-        -x  [-f:-i:-u]          Debug mode
-
-        -I  [image]:[version]   Print image info
-
-        -c  [image]:[version]   Copy metadata from image to directory /tmp
-
-        -l                      List installed image
-
-        -h                      Help
-
-Environments:
-
-        DOCKER_PATH             Path docker, default: DOCKER_PATH=/usr/bin
-
-        SAM_DB_LIST             SAM database, default: SAM_DB_LIST=/var/db/sam/list_installed
-
-        BIN_DIR                 Path to directory with executable files, default: BIN_DIR=/opt/bin
+     Repository Management:
+        addrepo, ar             Add a new repository.
+        removerepo, rr          Remove specified repository.
+        modifyrepo, mr          Modify specified repository.
+        listrepos, lr           List all defined repositories.

@@ -12,43 +12,37 @@ fi;
 if [[ -z $SAM_DB_SQLITE ]];then
         SAM_DB_SQLITE='/var/db/sam/smilart.db';
 fi;
-##Constant
-
-IMAGE='';
 
 ## Functions
 # Copy META from image
+# copy_meta_func <DockerId>
 copy_meta_func () {
-	# input: $IMAGE 
 	TEMPLATE_DIR=`mktemp -d`;
-	docker run -i -t --rm -v $TEMPLATE_DIR:$TEMPLATE_DIR  --net=host --entrypoint="cp" $IMAGE -r /meta $TEMPLATE_DIR/meta 2>&1 > /dev/null;
+	docker run -i -t --rm -v $TEMPLATE_DIR:$TEMPLATE_DIR  --net=host --entrypoint="cp" $1 -r /meta $TEMPLATE_DIR/meta 2>&1 > /dev/null;
 	if [[ $? -ne 0 ]]; then
 		echo -e "\E[31mERROR: Directory '/meta' not found in image.">&2;tput sgr0;
 		rm -rf $TEMPLATE_DIR;
 		exit 1;
 	fi;
-	# output $pwd $TEMPLATE_DIR
 }
 
 # Uninstall apps function
-uninstall_apps_func () {
-	#
-	echo;
-	echo -e "\E[32mUninstalling app $IMAGE.";tput sgr0;
-	copy_meta_func;
+# uninstall_app_func <DockerId>
+uninstall_app_func () {
+	copy_meta_func $1;
 	pwd=$PWD;
 	cd $TEMPLATE_DIR/meta;
 	source $TEMPLATE_DIR/meta/uninstall;
 	cd $pwd;
 	rm -rf $TEMPLATE_DIR;
 	echo;
+        unset TEMPLATE_DIR;
 }
 
 # Install apps function
-install_apps_func () {
-	echo;
-	echo -e "\E[32mInstalling app $IMAGE.";tput sgr0;
-	copy_meta_func;
+# install_app_func <DockerId>
+install_app_func () {
+	copy_meta_func $1;
 	pwd=$PWD;
 	cd $TEMPLATE_DIR/meta;
 	echo;
@@ -56,43 +50,30 @@ install_apps_func () {
 	cd $pwd;
 	rm -rf $TEMPLATE_DIR;
 	echo;
+	unset TEMPLATE_DIR;
 }
 
-# Save apps in db function
-save_apps_to_db_sqlite_func () {
-	# Exist app in db?
-	TEST_EXIST=`echo "$IMAGE" | awk -F ':' 'NF--' | sed "s/ /:/g"`;
-	if [[ -n `list_apps_in_db_func | awk  'BEGIN {OFS = ":"} {print $3, $4}' | grep $TEST_EXIST` ]];then
-		echo -e "\E[31mERROR: App exist in db. ">&2;tput sgr0;
-		echo "List exist apps: ./sam -l";
+# create_tag_app <DockerId> <app>:<version>
+create_tag_app (){
+	SAM_APP_LABEL=`docker inspect $1 | grep -m 1 com.smilart.repo_base_name | awk -F '"'  '{print $4}'`
+	if [[ -n $SAM_APP_LABEL ]];then    
+        	echo;
+        	echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2' from app";tput sgr0
+	        docker tag -f $1 $SAM_APP_LABEL/$2;
+	        if [[ $? -ne 0 ]]; then
+                    echo -e "\E[31mERROR: Not created app tag.">&2;tput sgr0;
+                    exit 1;
+                fi;
+	else
 		echo;
-		exit 1;
-	fi;
-	echo  "Save app to db.";
-	# Collecting info for app
-	IMAGE_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
-	IMAGE_VERSION=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2} ' | sed "s/ /:/g" | grep "$IMAGE" | awk -F ':' '{print $NF}'`;
-	IMAGE_NAME=`docker images --no-trunc | grep "$IMAGE_ID" | tail -1 | awk -F ' ' ' {print $1} '`;
-	# Edit db
-	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos) values ('$IMAGE_ID','$IMAGE_NAME','$IMAGE_VERSION','0');";
-	unset TEST_EXIST;
-	unset IMAGE_ID;
-	unset IMAGE_VERSION;
-	unset IMAGE_NAME;
+		echo "Not found Label for app.";
+	fi; 
 }
-
 # Delete apps in db function
-delete_apps_to_db_func () {
+# delete_app_to_db_func <DockerId>;
+delete_app_to_db_func () {
 	echo  "Deleting app in db.";
-	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$IMAGE'";
-	
-}
-
-# Image latest?
-image_latest_func (){
-	if [[ -z `echo "$IMAGE" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'` ]];then
-		IMAGE="$IMAGE:latest";
-	fi;
+	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$1'";
 }
 
 create_connect_func() {
@@ -174,36 +155,10 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
 	echo;
 	sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);";
 	echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL";
-	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','official','$SAM_DB_TABLE_REPOS_URL',' ',' ',' ');";
+	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','official','$SAM_DB_TABLE_REPOS_URL','','','');";
 fi;
 unset SAM_DB_TABLE_REPOS_URL;
 
-#List in SQLite db
-list_apps_in_db_func () {
-	sqlite3 $SAM_DB_SQLITE "SELECT * from $SAM_DB_TABLE_INSTALL_APPS" | awk -F '|' '{print $1, $2, $3, $4, $5}';
-}
-
-list_repos_in_db_func () {
-	sqlite3 $SAM_DB_SQLITE "SELECT id, ReposFlag, ReposName, ReposUrl, ReposUser, ReposPass, ReposEmail from $SAM_DB_TABLE_REPOS" | awk -F '|' '{print $1, $2, $3, $4, $5, $6}';
-}
-#Exist repos name?
-exist_repos_name_in_db_func() {
-	if [[ -z $SAM_DB_TABLE_REPOS_NAME ]];then
-		echo -e "\E[31mERROR: Variable from name repository is empty.">&2;tput sgr0;
-		exit 1;
-	fi;
-	if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS" | \
-                        while read line; do \
-                            if [ $line == $SAM_DB_TABLE_REPOS_NAME ];then \
-                                echo $line; \
-                                break; \
-                            fi; \
-                        done;` ]];then
-		echo -e "\E[31mERROR: Repository name '$SAM_DB_TABLE_REPOS_NAME' is not found in db.">&2;tput sgr0;
-		echo "Existing repositories look with 'sam help listrepos'.";
-		exit 1;
-	fi;
-}
 
 ###Help section
 USAGE="
@@ -231,13 +186,10 @@ USAGE="
         modifyrepo, mr          Modify specified repository.
         listrepos, lr           List all defined repositories.
 
-
-  Environments:
-	BIN_DIR			Path to directory with executable files, default: BIN_DIR=$BIN_DIR
 ";
 
 USAGE_INSTALL='
-install (in) [repo/]<app>:<version>
+install (in) [name repository/]<app>:<version>
 
 Install smilart applications with specified capabilities.
 
@@ -274,12 +226,17 @@ Print application info.
 ";
 
 USAGE_ADDREPO="
-addrepo (ar) [options] <name> <url> [<username> <password> <mail>]
+addrepo (ar) [--default] [--name <name>] [--url <url>] [--username <username>] [--password <password>] [--email <email>]
 
 Add a repository to the system.
 
   Command options:
     --default                   Add the repository as default.
+    --name                      Add a descriptive name for the repository.
+    --url                       Add a url for the repository.
+    --username                  Optional. Add the user name for authentication.
+    --password                  Optional. Add the password for authentication.
+    --email                     Optional. Add the email for authentication.
 
 ";
 
@@ -306,251 +263,446 @@ Modify properties of repositories specified.
 ";
 
 USAGE_LISTREPOS="
-repos (lr) [options]
+listrepos (lr) [options]
 
 List all defined repositories.
     --raw                       List all defined repositories in RAW format.
 ";
 
+# save_app_in_db <DockerId> <ImageName> <ImageVersion> <ImageRepos NUMBER>
+save_app_in_db(){
+    echo  "Save app to db.";
+    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos) values ('$1','$2','$3','$4');";
+}
+
+
 ###Function for case
 install_func(){
-echo "OK"
+    SAM_INSTALL_VERSION=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'`;
+    if [[ -z $SAM_INSTALL_VERSION ]];then
+	echo -e "\E[31mERROR: Version in string '$1' is not found.">&2;tput sgr0;
+	exit 1;
+    fi;
+    SAM_INSTALL_APP=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $1}'`;
+    SAM_INSTALL_REPOS_NAME=`echo "$1" | sed "s#\$SAM_INSTALL_APP\:\$SAM_INSTALL_VERSION##g" | sed 's/\/$//'`;
+    if [[ -z $SAM_INSTALL_REPOS_NAME ]];then
+	SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`	
+    fi;	
+    #Exist repository in db?
+    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"` ]];then
+	echo -e "\E[31mERROR: Not found name repository '$SAM_INSTALL_REPOS_NAME' in db.">&2;tput sgr0;
+	exit 1;
+    fi;
+    #Exist app in db?
+    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INSTALL_APP'"` ]];then
+	echo -e "\E[31mERROR: App '$SAM_INSTALL_APP' found in db.">&2;tput sgr0;
+	exit 1;
+    fi;
+    #logging
+    SAM_INSTALL_USER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUser from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'" | sed 's/[\ \t]//g'`;
+    SAM_PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
+    if [[ -n $SAM_INSTALL_USER ]];then
+	SAM_INSTALL_PASSWORD=`sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
+	SAM_INSTALL_EMAIL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposEmail from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
+	SAM_INSTALL_REPOS_URL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
+	docker login --username=$SAM_INSTALL_USER --password=`echo "$SAM_INSTALL_PASSWORD" | base64 -d` --email=$SAM_INSTALL_EMAIL $SAM_PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
+	if [[ $? -ne 0 ]]; then
+	    echo -e "\E[31mERROR: Wrong login/password or url from repository.">&2;tput sgr0;
+	    exit 1;
+	fi;
+    fi;
+    SAM_INSTALL_REPO_ID=`sqlite3 $SAM_DB_SQLITE "SELECT Id FROM $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
+    docker pull $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
+    if [[ $? -ne 0 ]]; then
+	echo -e "\E[31mERROR: Not download smilart applications.">&2;tput sgr0;
+	echo "Find local application.";
+	SAM_INSTALL_REPO_ID='';
+    fi;
+    #save in db
+    SAM_INSTALL_DOCKER_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION" | awk -F ':' '{print $NF}'`;
+    if [[ -z $SAM_INSTALL_DOCKER_ID ]];then
+	echo -e "\E[31mERROR: Not found smilart applications '$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'.">&2;tput sgr0;
+	exit 1;
+    fi;
+    save_app_in_db $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID;
+    if [[ $? -ne 0 ]]; then
+	echo -e "\E[31mERROR: Not save in db. '$SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID'">&2;tput sgr0;
+	exit 1;
+    fi;
+    create_tag_app $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
+    echo;
+    echo -e "\E[32mInstalling app $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION.";tput sgr0;
+    install_app_func $SAM_INSTALL_DOCKER_ID;
+    docker logout 2>&1 > /dev/null;
+    echo -e "\E[32mApp $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION installed.";tput sgr0;
+    echo;
+    unset SAM_INSTALL_DOCKER_ID;
+    unset SAM_INSTALL_REPO_ID;
+    unset SAM_INSTALL_VERSION;
+    unset SAM_INSTALL_APP;
+    unset SAM_INSTALL_REPOS_URL;
+    unset SAM_INSTALL_REPOS_NAME;
+    unset SAM_INSTALL_USER;
+    unset SAM_INSTALL_PASSWORD;
+    unset SAM_INSTALL_EMAIL;
+    unset SAM_PREFIX_IMAGE_DOCKER;
 }
 
 installfile_func(){
-echo "OK"
+    # Find file "repositories"
+    tar -xf $1 repositories;
+    if [[ $? -ne 0 ]]; then
+	echo -e "\E[31mERROR: File repositories not found in archive.">&2;tput sgr0;
+	echo "May be incorrectly created archive.";
+	exit 1;
+    fi;
+    # SAM_INSTALLFILE_NAME = PREFIX_IMAGE_DOCKER/$SAM_INSTALLFILE_APP
+    SAM_INSTALLFILE_NAME=`cat repositories | awk -F '"' ' {print $2} ' | sed "s/ /:/g"`;
+    SAM_INSTALLFILE_APP=`cat repositories | awk -F '"' ' {print $2} ' | sed "s/ /:/g" | awk -F '/' '{print $NF}'`;
+    SAM_INSTALLFILE_VERSION=`cat repositories | awk -F '"' ' {print $4} ' | sed "s/ /:/g"`;
+    if [[ -z $SAM_INSTALLFILE_NAME ]] || [[ -z $SAM_INSTALLFILE_VERSION ]]; then
+	echo -e "\E[31mERROR: Incorrect file 'repositories' in archive.">&2;tput sgr0;
+	echo "Not found application name or version in file.";
+	echo "May be incorrectly created archive.";
+	exit 1;
+    fi;
+    rm -f repositories;
+    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INSTALLFILE_APP'"` ]];then
+         echo -e "\E[31mERROR: Application name '$SAM_INSTALLFILE_APP' exist in db.">&2;tput sgr0;
+         exit 1;
+
+    fi;
+    echo "Loading image '$SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION'.";
+    docker load -i $1;
+    if [[ $? -ne 0 ]]; then
+	echo -e "\E[31mERROR: Loading image.">&2;tput sgr0;
+	exit 1;
+    fi;
+    # Save in db
+    SAM_INSTALLFILE_DOCKER_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION" | awk -F ':' '{print $NF}'`;
+    SAM_INSTALLFILE_REPO_ID=0;    
+    save_app_in_db $SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID;
+    if [[ $? -ne 0 ]]; then
+        echo -e "\E[31mERROR: Not saving in db. '$SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID'">&2;tput sgr0;
+        exit 1;
+    fi;
+    # Install app
+    create_tag_app $SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP:$SAM_INSTALLFILE_VERSION;
+    echo;
+    echo -e "\E[32mInstalling app $SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION.";tput sgr0;
+    install_app_func $SAM_INSTALLFILE_DOCKER_ID;
+    echo -e "\E[32mApp $SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION installed.";tput sgr0;
+    echo;
+    unset SAM_INSTALLFILE_NAME;
+    unset SAM_INSTALLFILE_APP;
+    unset SAM_INSTALLFILE_VERSION;
+    unset SAM_INSTALLFILE_DOCKER_ID;
+    unset SAM_INSTALLFILE_REPO_ID;
 }
 
 remove_func(){
-echo "OK"
+    SAM_REMOVE_NAME=$1;
+    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"` ]];then
+	echo -e "\E[31mERROR: App not found in db.">&2;tput sgr0;
+	exit 1;
+    fi;
+    SAM_REMOVE_VERSION=`sqlite3 $SAM_DB_SQLITE "SELECT ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"`;
+    SAM_REMOVE_DOCKER_ID=`sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"`;
+    echo;
+    echo -e "\E[32mUninstalling app $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION.";tput sgr0;
+    uninstall_app_func $SAM_REMOVE_DOCKER_ID;
+    delete_app_to_db_func $SAM_REMOVE_DOCKER_ID;
+    echo -e "\E[32mApp $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION uninstalled.";tput sgr0;
+    unset SAM_REMOVE_NAME;
+    unset SAM_REMOVE_VERSION;
+    unset SAM_REMOVE_DOCKER_ID;
 }
 
 list_func(){
-echo "OK"
+if [ -z "$GETOPT_RAW" ];then
+	echo;
+	echo "      List apps:";
+	echo;
+	# Print repository
+	LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository FROM $SAM_DB_TABLE_INSTALL_APPS"`;
+	if [[ -n $LIST_APPS ]];then
+	    LIST_APPS_MAX_LINE=`echo "$LIST_APPS" | column -t -s '|' -o ' | ' | wc -L`;
+            echo "$LIST_APPS" | column -t -s '|' -o ' | ' | sed -e "1 a `for i in \`seq 1 $LIST_APPS_MAX_LINE\`; do echo -n '-';  done`";
+	echo;
+	fi;
+else
+	sqlite3 $SAM_DB_SQLITE "SELECT ImageName,ImageVersion,ImageRepos,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END FROM $SAM_DB_TABLE_INSTALL_APPS";
+fi;
+unset LIST_APPS;
+unset LIST_APPS_MAX_LINE;
 }
 
 info_func(){
-echo "OK"
+    SAM_INFO_APP=$1
+    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"` ]];then
+        echo -e "\E[31mERROR: App not found in db.">&2;tput sgr0;
+        exit 1;
+    fi;
+    SAM_INFO_DOCKER_ID=`sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"`;
+    copy_meta_func $SAM_INFO_DOCKER_ID;
+    pwd=$PWD;
+    cd $TEMPLATE_DIR/meta;
+    echo;
+    cat DESCRIPTION;
+    echo;
+    echo "    Time of creation:";
+    cat BUILDSTAMP;
+    cd $pwd;
+    rm -rf $TEMPLATE_DIR;
+    echo;
+    unset TEMPLATE_DIR;
+    unset SAM_INFO_APP;
+    unset SAM_INFO_DOCKER_ID;
 }
 
 addrepo_func(){
-    #Default repo?
-    SAM_DB_TABLE_REPOS_FLAG='';
-    if [[ -n `echo $SAM_ARGUMENTS | grep -w '\-\-default'` ]];then
-         SAM_ARGUMENTS=`echo "$SAM_ARGUMENTS" | sed 's/--default //'`;
-         SAM_DB_TABLE_REPOS_FLAG='*';
-    fi;
-    IFS=' ' read -a ARR_OF_ARG <<< "$SAM_ARGUMENTS";
-    if [[ -z ${ARR_OF_ARG[0]} ]] || [[ -z ${ARR_OF_ARG[1]} ]];then
+    #It is correct name and url?
+    if [[ -z $GETOPT_NAME ]] || [[ -z $GETOPT_URL ]];then
          echo "$USAGE_ADDREPO";
-         echo -e "\E[31mERROR: Argument for "sam addrepo" is not correct.">&2;tput sgr0;
+         echo -e "\E[31mERROR: Argument for 'sam addrepo' is not correct.">&2;tput sgr0;
          exit 1;
     fi;
-    SAM_DB_TABLE_REPOS_NAME="${ARR_OF_ARG[0]}";
-    SAM_DB_TABLE_REPOS_URL="${ARR_OF_ARG[1]}";
-    SAM_DB_TABLE_REPOS_USER="${ARR_OF_ARG[2]}";
-    SAM_DB_TABLE_REPOS_PASS="${ARR_OF_ARG[3]}";
-    SAM_DB_TABLE_REPOS_EMAIL="${ARR_OF_ARG[4]}";
-    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS" | \
-         while read line; do \
-             if [ $line == $SAM_DB_TABLE_REPOS_NAME ];then \
-                  echo $line; \
-                  break; \
-             fi; \
-         done;` ]];then
+    #Exist name in db?
+    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$GETOPT_NAME'"` ]];then
          echo -e "\E[31mERROR: Repository name '$SAM_DB_TABLE_REPOS_NAME' exist in db.">&2;tput sgr0;
          exit 1;
-        fi;
-    SAM_DB_TABLE_REPOS_PASS=`echo "$SAM_DB_TABLE_REPOS_PASS" | base64`;
+    fi;
+    GETOPT_PASSWORD=`echo "$GETOPT_PASSWORD" | base64`
     
     #save in db
-    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('$SAM_DB_TABLE_REPOS_FLAG','$SAM_DB_TABLE_REPOS_NAME','$SAM_DB_TABLE_REPOS_URL','$SAM_DB_TABLE_REPOS_USER','$SAM_DB_TABLE_REPOS_PASS','$SAM_DB_TABLE_REPOS_EMAIL');";
-    if [[ -n $SAM_DB_TABLE_REPOS_FLAG ]];then
-	sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=' '";
-	sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where ReposName='$SAM_DB_TABLE_REPOS_NAME'";
+    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('$GETOPT_DEFAULT','$GETOPT_NAME','$GETOPT_URL','$GETOPT_USERNAME','$GETOPT_PASSWORD','$GETOPT_EMAIL');";
+    if [[ -n $GETOPT_DEFAULT ]];then
+       sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=''";
+       sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where ReposName='$GETOPT_NAME'";
     fi;
-    unset SAM_DB_TABLE_REPOS_FLAG;
-    unset SAM_DB_TABLE_REPOS_URL;
-    unset SAM_DB_TABLE_REPOS_NAME;
-    unset SAM_DB_TABLE_REPOS_USER;
-    unset SAM_DB_TABLE_REPOS_PASS;
-    unset SAM_DB_TABLE_REPOS_EMAIL;
 }
 
 removerepo_func(){
+    # $1 is name or id repository
     #Found repo name in db?
-    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS" | \
-        while read line; do \
-            if [ $line == $SAM_ARGUMENTS ];then \
-                 echo $line; \
-                 break; \
-            fi; \
-        done;` ]];then
-
+    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$1'"` ]];then
 	#delete in db
 	#Default repository?
-	if [[ '*' == `sqlite3 $SAM_DB_SQLITE "select ReposFlag from $SAM_DB_TABLE_REPOS where ReposName='$SAM_ARGUMENTS'"` ]]; then
-		echo -e "\E[31mERROR: Repository with name '$SAM_ARGUMENTS' is default.">&2;tput sgr0;
+	if [[ '*' == `sqlite3 $SAM_DB_SQLITE "select ReposFlag from $SAM_DB_TABLE_REPOS where ReposName='$1'"` ]]; then
+		echo -e "\E[31mERROR: Repository with name '$1' is default.">&2;tput sgr0;
         	exit 1;
 	fi;
-	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where ReposName='$SAM_ARGUMENTS'";
+	sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where ReposName='$1'";
 
     #Found id in db?	
-    elif [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT Id from $SAM_DB_TABLE_REPOS" | \
-        while read line; do \
-            if [ $line == $SAM_ARGUMENTS ];then \
-                 echo $line; \
-                 break; \
-	    fi; \
-	done;` ]];then
-	
+    elif [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT Id from $SAM_DB_TABLE_REPOS where Id='$1'"` ]];then
 	#delete in db
         #Default repository?
-        if [[ '*' == `sqlite3 $SAM_DB_SQLITE "select ReposFlag from $SAM_DB_TABLE_REPOS where id='$SAM_ARGUMENTS'"` ]]; then
-                echo -e "\E[31mERROR: Repository with number '$SAM_ARGUMENTS' is default.">&2;tput sgr0;
+        if [[ '*' == `sqlite3 $SAM_DB_SQLITE "select ReposFlag from $SAM_DB_TABLE_REPOS where Id='$1'"` ]]; then
+                echo -e "\E[31mERROR: Repository with number '$1' is default.">&2;tput sgr0;
                 exit 1; 
         fi;
-        sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where Id='$SAM_ARGUMENTS'";
+        sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where Id='$1'";
     else
-	    echo -e "\E[31mERROR: Repository name and number '$SAM_ARGUMENTS' not found in db.">&2;tput sgr0;
+	    echo -e "\E[31mERROR: Repository name and number '$1' not found in db.">&2;tput sgr0;
             exit 1;
 
     fi;
 }
 
 modifyrepo_func(){
-    SAM_DB_TABLE_REPOS_ID=`echo $SAM_ARGUMENTS |  awk ' {print $1} '`
-    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT Id from $SAM_DB_TABLE_REPOS" | \
-        while read line; do \
-            if [ $line == $SAM_DB_TABLE_REPOS_ID ];then \
-                 echo $line; \
-                 break; \
-            fi; \
-        done;` ]];then
-	echo -e "\E[31mERROR: Repository number '$SAM_DB_TABLE_REPOS_ID' not found in db.">&2;tput sgr0;
+    #It is correct name and url?
+    if [[ -z $1 ]];then
+         echo "$USAGE_MODIFYREPO";
+         echo -e "\E[31mERROR: Argument id repository for 'sam modifyrepo' is not correct.">&2;tput sgr0;
+         exit 1;
+    fi;    
+    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT Id from $SAM_DB_TABLE_REPOS where Id='$1'"` ]];then
+	echo -e "\E[31mERROR: Repository number '$1' not found in db.">&2;tput sgr0;
 	exit 1;
     fi;
-    
-	
+    GETOPT_NAME=`[[ -z $GETOPT_NAME ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_NAME`;
+    GETOPT_URL=`[[ -z $GETOPT_URL ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_URL`;
+    GETOPT_USERNAME=`[[ -z $GETOPT_USERNAME ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposUser from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_USERNAME`;
+    GETOPT_PASSWORD=`[[ -z $GETOPT_PASSWORD ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_PASSWORD | base64`;
+    GETOPT_EMAIL=`[[ -z $GETOPT_EMAIL ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposEmail from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_EMAIL`;
+    sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposName='$GETOPT_NAME',ReposUrl='$GETOPT_URL',ReposUser='$GETOPT_USERNAME',ReposPass='$GETOPT_PASSWORD',ReposEmail='$GETOPT_EMAIL' where id='$1'";
+    if [[ $GETOPT_DEFAULT == '*' ]];then
+	sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=''";
+	sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where id='$1'";
+    fi;
 }
 
 listrepos_func(){
-    echo;
-    echo "      List repositories:";
-    echo;
-    LIST_REPOSITORIES=`sqlite3 -header $SAM_DB_SQLITE "SELECT id as Num, ReposFlag as Def, ReposName as Name, ReposUrl as Url, ReposUser as User FROM $SAM_DB_TABLE_REPOS" |  column -t -s '|' -o ' | '`;
-
-    LIST_REPOSITORIES_MAX_LINE=`echo "$LIST_REPOSITORIES" | wc -L`;
-    echo "$LIST_REPOSITORIES" | sed -e "1 a `for i in \`seq 1 $LIST_REPOSITORIES_MAX_LINE\`; do echo -n '-';  done`"
-    echo;
+    if [ -z "$GETOPT_RAW" ];then
+	echo;
+	echo "      List repositories:";
+	echo;
+	LIST_REPOSITORIES=`sqlite3 -header $SAM_DB_SQLITE "SELECT id as Num, ReposFlag as Def, ReposName as Name, ReposUrl as Url, ReposUser as User FROM $SAM_DB_TABLE_REPOS" |  column -t -s '|' -o ' | '`;
+	LIST_REPOSITORIES_MAX_LINE=`echo "$LIST_REPOSITORIES" | wc -L`;
+	echo "$LIST_REPOSITORIES" | sed -e "1 a `for i in \`seq 1 $LIST_REPOSITORIES_MAX_LINE\`; do echo -n '-';  done`"
+	echo;
+    else
+	sqlite3 $SAM_DB_SQLITE "SELECT id, ReposFlag, ReposName, ReposUrl, ReposUser, ReposEmail FROM $SAM_DB_TABLE_REPOS";
+    fi;
     unset LIST_REPOSITORIES_MAX_LINE;
     unset LIST_REPOSITORIES;
 }
+help_func (){
+    case $1 in
+	install|in)
+	    echo "$USAGE_INSTALL";
+            exit 0
+            ;;
+        installfile)
+            echo "$USAGE_INSTALLFILE";
+            exit 0
+            ;;
+        remove|rm)
+            echo "$USAGE_REMOVE";
+            exit 0
+            ;;
+        list)
+            echo "$USAGE_LIST";
+            exit 0
+            ;;
+        info)
+            echo "$USAGE_INFO";
+            exit 0
+            ;;
+        addrepo|ar)
+            echo "$USAGE_ADDREPO";
+            exit 0
+            ;;
+        removerepo|rr)
+            echo "$USAGE_REMOVEREPO";
+            exit 0
+            ;;
+        modifyrepo|mr)
+            echo "$USAGE_MODIFYREPO";
+            exit 0
+            ;;
+        listrepos|lr)
+            echo "$USAGE_LISTREPOS";
+            exit 0
+            ;;
+        *)
+            echo "$USAGE";
+            echo;
+            ;;
+    esac
+}
 
 ###Case section
-SAM_ARGUMENTS=''
-#set -vx
-while getopts ":h-:" OPTIONS
-do
-    case $OPTIONS in
-        -) case "${OPTARG}" in
-                help)
-                    echo "$USAGE";
+SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,url:,username:,password:,email: --name "sam" -- "$@"`
+eval set -- "$SAM_ARGUMENT";
+unset SAM_ARGUMENT;
+unset GETOPT_RAW;
+unset GETOPT_DEFAULT;
+unset GETOPT_NAME;
+unset GETOPT_URL;
+unset GETOPT_USERNAME;
+unset GETOPT_PASSWORD;
+unset GETOPT_EMAIL;
+
+while true ; do
+    case "$1" in
+        -h|--help)
+	    shift; 
+	    help_func $@;
+	    exit 0
+	    ;;
+        -x|--debug) 
+	    set -vx; 
+	    shift
+	    ;;
+	--raw)
+	    GETOPT_RAW='*';
+	    shift 
+	    ;;
+	--default)
+	    GETOPT_DEFAULT='*';
+            shift
+            ;;
+        --name)
+            GETOPT_NAME=$2;
+            shift 2
+            ;;
+        --url)
+            GETOPT_URL=$2;
+            shift 2
+            ;;
+        --username)
+            GETOPT_USERNAME=$2;
+            shift 2
+            ;;
+        --password)
+            GETOPT_PASSWORD=$2;
+            shift 2
+            ;;
+        --email)
+            GETOPT_EMAIL=$2;
+            shift 2
+            ;;
+        --)
+	    shift; 
+	    case "$1" in
+		help)
+		    shift;   
+		    help_func $@;
+		    exit 0;
+                    ;;
+		addrepo|ar)
+		    shift;
+		    addrepo_func;
+		    exit 0
+	            ;;
+		listrepos|lr)
+		    shift;
+                    listrepos_func;
                     exit 0
                     ;;
-
-                debug)
-                    set -vx;
-                    SAM_ARGUMENTS=`echo $@ | sed 's/--debug //'`
+		removerepo|rr)
+                    shift;
+                    removerepo_func $1;
+                    exit 0
                     ;;
-                \?)
-                    echo -e "\E[31mERROR: Unknown option: '--$OPTARG'">&2;tput sgr0;
-                    exit 1
+		modifyrepo|mr)
+		    shift;
+		    modifyrepo_func $1;
+		    exit 0
+		    ;;
+		list)
+		    shift;
+		    list_func;
+		    exit 0
+		    ;;
+		install|in)
+		    shift;
+		    install_func $1;
+		    exit 0
+		    ;;
+		remove|rm)
+                    shift;
+                    remove_func $1;
+                    exit 0
                     ;;
-           esac
-           ;;
-        \?)
-           echo -e "\E[31mERROR: Unknown option: '-$OPTARG'">&2;tput sgr0;
-           exit 1
-           ;;
+		installfile)
+		    shift;
+		    installfile_func $1;
+                    exit 0
+                    ;;
+		info)
+		    shift;
+                    info_func $1;
+                    exit 0
+                    ;;
+	    esac
+	    ;;
+        *)
+	    echo "$USAGE";
+	    echo; 
+	    exit 0
+	    ;;
     esac
 done
-
-if [[ -z $SAM_ARGUMENTS ]]; then
-        SAM_ARGUMENTS=`echo $@`;
-fi;
-
-case `echo $SAM_ARGUMENTS | awk ' {print $1} '` in
-        help)	case `echo $SAM_ARGUMENTS | sed 's/help //'` in
-			install)	echo "$USAGE_INSTALL"
-			;;
-			installfile)	echo "$USAGE_INSTALLFILE"
-			;;
-			remove)		echo "$USAGE_REMOVE"
-			;;
-			list) 		echo "$USAGE_LIST"
-			;;
-			info)		echo "$USAGE_INFO"
-			;;
-			addrepo)	echo "$USAGE_ADDREPO"
-			;;
-			removerepo)	echo "$USAGE_REMOVEREPO"
-			;;
-			modifyrepo)	echo "$USAGE_MODIFYREPO"
-			;;
-			listrepos)	echo "$USAGE_LISTREPOS"
-			;;
-			*)
-				echo "$USAGE";
-				echo;
-				if [[ -n `echo $SAM_ARGUMENTS | sed 's/help//'` ]];then
-					echo -e "\E[31mERROR: Unknown command: 'sam $SAM_ARGUMENTS'">&2;tput sgr0;
-                                	exit 1;
-				fi;
-		        	exit 0
-           		;;
-		esac		
-        ;;
-
-        install)	install_func;
-        ;;
-
-        installfile)	installfile_func;
-        ;;
-
-        remove)		remove_func;
-        ;;
-
-        list)		list_func;
-        ;;
-
-        info)		info_func;
-        ;;
-
-        addrepo)        SAM_ARGUMENTS=`echo "$SAM_ARGUMENTS" | sed 's/addrepo //'`;
-			addrepo_func;
-			exit 0
-        ;;
-
-        removerepo)	SAM_ARGUMENTS=`echo "$SAM_ARGUMENTS" | sed 's/removerepo //'`;
-			removerepo_func;
-			exit 0
-        ;;
-
-        modifyrepo)     SAM_ARGUMENTS=`echo "$SAM_ARGUMENTS" | sed 's/modifyrepo //'`;
-			modifyrepo_func;
-			exit 0
-        ;;
-
-        listrepos)	listrepos_func;
-			exit 0
-        ;;
-        *)
-	   echo;
-	   echo "$USAGE";
-           echo -e "\E[31mERROR: Unknown command: 'sam $SAM_ARGUMENTS'">&2;tput sgr0;
-           exit 1
-        ;;
-
-esac;
-
