@@ -1,5 +1,6 @@
 #!/bin/bash
 #set -vx
+SAM_VERSION='1.0';
 
 if [[ -z $SAM_DB_LIST ]];then
         SAM_DB_LIST='/var/db/sam/list_installed';
@@ -185,6 +186,8 @@ USAGE="
         removerepo, rr          Remove specified repository.
         modifyrepo, mr          Modify specified repository.
         listrepos, lr           List all defined repositories.
+
+  Version SAM v$SAM_VERSION
 
 ";
 
