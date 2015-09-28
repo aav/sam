@@ -10,6 +10,10 @@ if [[ -z $BIN_DIR ]]; then
         BIN_DIR='/opt/bin';
 fi;
 
+if [[ ! -d /var/db/sam ]];then
+        mkdir -p '/var/db/sam';
+fi;
+
 if [[ -z $SAM_DB_SQLITE ]];then
         SAM_DB_SQLITE='/var/db/sam/smilart.db';
 fi;
@@ -156,6 +160,7 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
 	echo;
 	sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);";
 	echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL";
+	echo;
 	sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','official','$SAM_DB_TABLE_REPOS_URL','','','');";
 fi;
 unset SAM_DB_TABLE_REPOS_URL;
