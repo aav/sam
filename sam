@@ -477,11 +477,11 @@ addrepo_func(){
     fi;
     #Exist name in db?
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$GETOPT_NAME'"` ]];then
-         echo -e "\E[31mERROR: Repository name '$SAM_DB_TABLE_REPOS_NAME' exist in db.">&2;tput sgr0;
+         echo -e "\E[31mERROR: Repository name '$GETOPT_NAME' exist in db.">&2;tput sgr0;
          exit 1;
     fi;
     GETOPT_PASSWORD=`echo "$GETOPT_PASSWORD" | base64`
-    
+
     #save in db
     sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('$GETOPT_DEFAULT','$GETOPT_NAME','$GETOPT_URL','$GETOPT_USERNAME','$GETOPT_PASSWORD','$GETOPT_EMAIL');";
     if [[ -n $GETOPT_DEFAULT ]];then
