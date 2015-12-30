@@ -178,12 +178,13 @@ USAGE="
 
   Commands:
         help, ?                 Print help.
-     
+
      Software Management:
         install, in             Install applications.
         installfile             Install applications from archive.
         remove, rm              Remove applications.
         list                    List installed applications.
+        search, se              Search image version in Docker Hub.
         info                    Print application info.
 
      Repository Management:
@@ -213,6 +214,13 @@ USAGE_REMOVE="
 remove (rm) <name>
 
 Remove smilart applications with specified capabilities.
+
+";
+
+SEARCH_LIST="
+search (se) <image name>
+
+Search version docker images from docker Hub.
 
 ";
 
@@ -556,6 +564,24 @@ listrepos_func(){
     unset LIST_REPOSITORIES_MAX_LINE;
     unset LIST_REPOSITORIES;
 }
+search_func(){
+            curl -s "https://registry.hub.docker.com//v1/repositories/$1/tags" > /dev/null;
+	    if [ $? -ne "0" ]; then
+		echo -e "\E[31mERROR: Host registry.hub.docker.com is unknown.">&2;tput sgr0;
+		exit 1;
+	    fi;
+	    LIST_VERSIONS=`curl "https://registry.hub.docker.com//v1/repositories/$1/tags" -f -s | sed 's/,/,\n/g' | grep name | awk -F '"' '{print $4}'`
+	    if [ $? -ne "0" ]; then
+                echo -e "\E[31mERROR: Image name is unknown.">&2;tput sgr0;
+                exit 1;
+	    else
+		echo;
+		echo "      List versions:";
+		echo;
+		echo "$LIST_VERSIONS" | sed 's/ /\n/g' | sed -e 's#^#'"$1"':#g';
+		echo;
+            fi;
+}
 help_func (){
     case $1 in
 	install|in)
@@ -592,6 +618,10 @@ help_func (){
             ;;
         listrepos|lr)
             echo "$USAGE_LISTREPOS";
+            exit 0
+            ;;
+        search|se)
+            echo "$USAGE_SEARCH";
             exit 0
             ;;
         *)
@@ -668,6 +698,11 @@ while true ; do
 		listrepos|lr)
 		    shift;
                     listrepos_func;
+                    exit 0
+                    ;;
+                search|se)
+                    shift;
+                    search_func $1;
                     exit 0
                     ;;
 		removerepo|rr)
