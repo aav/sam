@@ -16,7 +16,7 @@
         installfile             Install applications from archive.
         remove, rm              Remove applications.
         list                    List installed applications.
-        search, se              Search image version in Docker Hub.
+        search, se              Search image version on private docker registry.
         info                    Print application info.
 
      Repository Management:
