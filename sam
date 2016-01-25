@@ -186,6 +186,7 @@ USAGE="
         list                    List installed applications.
         search, se              Search image version on private registry.
         info                    Print application info.
+        upgrade                 Upgrade Smilart Os.
 
      Repository Management:
         addrepo, ar             Add a new repository.
@@ -197,16 +198,24 @@ USAGE="
 
 ";
 
-USAGE_INSTALL='
+USAGE_INSTALL="
 install (in) [name repository/]<app>:<version>
 
 Install smilart applications with specified capabilities.
 
-';
+";
+
 USAGE_INSTALLFILE="
-install <path>
+installfile <path>
 
 Install smilart applications with specified capabilities from gzip and tar archive.
+
+";
+
+USAGE_UPGRADE="
+upgrade <path|url>
+
+Install smilart-update applications with specified capabilities from gzip and tar archive. Or start update engine client with parameters.
 
 ";
 
@@ -371,7 +380,6 @@ installfile_func(){
     local SAM_INSTALLFILE_NAME;
     local SAM_INSTALLFILE_APP;
     local SAM_INSTALLFILE_VERSION;
-    local SAM_INSTALLFILE_DOCKER_ID;
     local SAM_INSTALLFILE_REPO_ID;
 
     # Find file "repositories"
@@ -405,7 +413,7 @@ installfile_func(){
     fi;
     # Save in db
     SAM_INSTALLFILE_DOCKER_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION" | awk -F ':' '{print $NF}'`;
-    SAM_INSTALLFILE_REPO_ID=0;    
+    SAM_INSTALLFILE_REPO_ID=0;
     save_app_in_db $SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID;
     if [[ $? -ne 0 ]]; then
         echo -e "\E[31mERROR: Not saving in db. '$SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID'">&2;tput sgr0;
@@ -420,8 +428,33 @@ installfile_func(){
     echo;
 }
 
-remove_func(){
+upgrade_func(){
+    local PATH_UPDATE_SMILARTOS
 
+    if [ -e $1 ];then
+        installfile_func "$1";
+        SAM_URL_UPDATE="http://user:user@smilartos-update.smilartservices.local:8002/"
+
+    else
+        SAM_URL_UPDATE="$1";
+    fi;
+    #Test url
+    curl "$SAM_URL_UPDATE";
+    if [[ $? -ne 0 ]]; then
+        echo -e "\E[31mERROR: Stop upgrading. Url $SAM_URL_UPDATE is bad.">&2;tput sgr0;
+        exit 1;
+    fi;
+    #Configure update-engine
+    echo "GROUP=stable
+REBOOT_STRATEGY=off
+SERVER=$SAM_URL_UPDATE" > $PATH_UPDATE_SMILARTOS;
+    #Restarting update-engine
+    sudo systemctl restart update-engine;
+    #Start update
+    update_engine_client -update;
+}
+
+remove_func(){
     local SAM_REMOVE_NAME;
     local SAM_REMOVE_VERSION;
     local SAM_REMOVE_DOCKER_ID;
@@ -558,7 +591,6 @@ modifyrepo_func(){
         sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where id='$1'";
     fi;
 }
-
 listrepos_func(){
 
     local LIST_REPOSITORIES_MAX_LINE
@@ -615,6 +647,10 @@ help_func(){
     case $1 in
         install|in)
             echo "$USAGE_INSTALL";
+            exit 0
+            ;;
+        upgrade)
+            echo "$USAGE_UPGRADE";
             exit 0
             ;;
         installfile)
@@ -717,7 +753,7 @@ while true ; do
                 help)
                     shift;
                     help_func $@;
-                    exit 0;
+                    exit 0
                     ;;
                 addrepo|ar)
                     shift;
@@ -762,6 +798,11 @@ while true ; do
                 installfile)
                     shift;
                     installfile_func $1;
+                    exit 0
+                    ;;
+                upgrade)
+                    shift;
+                    upgrade_func $1;
                     exit 0
                     ;;
                 info)

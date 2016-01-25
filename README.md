@@ -10,7 +10,7 @@
 
   Commands:
         help, ?                 Print help.
-     
+
      Software Management:
         install, in             Install applications.
         installfile             Install applications from archive.
@@ -18,6 +18,7 @@
         list                    List installed applications.
         search, se              Search image version on private docker registry.
         info                    Print application info.
+        upgrade                 Upgrade Smilart Os.
 
      Repository Management:
         addrepo, ar             Add a new repository.
