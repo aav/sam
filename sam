@@ -381,6 +381,7 @@ installfile_func(){
     local SAM_INSTALLFILE_APP;
     local SAM_INSTALLFILE_VERSION;
     local SAM_INSTALLFILE_REPO_ID;
+    local SAM_INSTALLFILE_DOCKER_ID;
 
     # Find file "repositories"
     tar -xf $1 repositories;
