@@ -18,7 +18,7 @@
         list                    List installed applications.
         search, se              Search image version on private docker registry.
         info                    Print application info.
-        upgrade                 Upgrade Smilart Os.
+        upgrade, up             Upgrade Smilart Os.
 
      Repository Management:
         addrepo, ar             Add a new repository.

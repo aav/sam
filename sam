@@ -1,6 +1,6 @@
 #!/bin/bash
 #set -vx
-SAM_VERSION='1.0';
+SAM_VERSION='1.3';
 
 if [[ -z $SAM_DB_LIST ]];then
         SAM_DB_LIST='/var/db/sam/list_installed';
@@ -186,7 +186,7 @@ USAGE="
         list                    List installed applications.
         search, se              Search image version on private registry.
         info                    Print application info.
-        upgrade                 Upgrade Smilart Os.
+        upgrade, up             Upgrade Smilart Os.
 
      Repository Management:
         addrepo, ar             Add a new repository.
@@ -213,9 +213,9 @@ Install smilart applications with specified capabilities from gzip and tar archi
 ";
 
 USAGE_UPGRADE="
-upgrade <path|url>
+upgrade (up) <path|url>
 
-Install smilart-update applications with specified capabilities from gzip and tar archive. Or start update engine client with parameters.
+Update Smilart OS from gzip archive. Or start update engine client with parameters url.
 
 ";
 
@@ -430,12 +430,25 @@ installfile_func(){
 }
 
 upgrade_func(){
-    local PATH_UPDATE_SMILARTOS
+    local PATH_UPDATE_SMILARTOS='/etc/coreos/update.conf';
+    local SAM_URL_UPDATE;
 
     if [ -e $1 ];then
-        installfile_func "$1";
+        #Exist app in db?
+        if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='smilartos-update'"` ]];then
+            echo -e "\E[31mERROR: App smilartos-update not found in db SAM.">&2;tput sgr0;
+            exit 1;
+        fi;
+        #Generate url update
         SAM_URL_UPDATE="http://user:user@smilartos-update.smilartservices.local:8002/"
-
+        #Stop update server
+        sudo systemctl stop smilartos-update;
+        #Copy file update
+        sudo mkdir -p /etc/smilartos-update/files/current > /dev/null 2>&1;
+        sudo rm -rf /etc/smilartos-update/files/current/* > /dev/null 2>&1;
+        sudo cp -f $1 /etc/smilartos-update/files/current/ > /dev/null 2>&1;
+        #Restart server update
+        sudo systemctl start smilartos-update;
     else
         SAM_URL_UPDATE="$1";
     fi;
@@ -650,7 +663,7 @@ help_func(){
             echo "$USAGE_INSTALL";
             exit 0
             ;;
-        upgrade)
+        upgrade|up)
             echo "$USAGE_UPGRADE";
             exit 0
             ;;
@@ -801,7 +814,7 @@ while true ; do
                     installfile_func $1;
                     exit 0
                     ;;
-                upgrade)
+                upgrade|up)
                     shift;
                     upgrade_func $1;
                     exit 0
