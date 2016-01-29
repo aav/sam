@@ -231,7 +231,7 @@ Remove smilart applications with specified capabilities.
 
 ";
 
-SEARCH_LIST="
+USAGE_SEARCH="
 search (se)
 
 Search version docker images from private docker-registry.
