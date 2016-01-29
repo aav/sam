@@ -232,7 +232,7 @@ Remove smilart applications with specified capabilities.
 ";
 
 USAGE_SEARCH="
-search (se)
+search (se) [image name]
 
 Search version docker images from private docker-registry.
 WARN: Search does not work on official Docker Hub.
@@ -305,7 +305,6 @@ save_app_in_db(){
     echo  "Save app to db.";
     sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos) values ('$1','$2','$3','$4');";
 }
-
 
 ###Function for case
 install_func(){
@@ -610,6 +609,7 @@ modifyrepo_func(){
         sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where id='$1'";
     fi;
 }
+
 listrepos_func(){
 
     local LIST_REPOSITORIES_MAX_LINE
@@ -627,41 +627,48 @@ listrepos_func(){
         sqlite3 $SAM_DB_SQLITE "SELECT id, ReposFlag, ReposName, ReposUrl, ReposUser, ReposEmail FROM $SAM_DB_TABLE_REPOS";
     fi;
 }
+
 search_func(){
 
-            local CURRENT_IMAGE
-            local SAM_INSTALL_REPOS_NAME
-            local SAM_INSTALL_PASSWORD
-            local SAM_INSTALL_REPOS_URL
-            local SAM_INSTALL_USER
-            local LIST_REPO_IMAGES
-            local CURRENT_IMAGE
+    local CURRENT_IMAGE
+    local SAM_INSTALL_REPOS_NAME
+    local SAM_INSTALL_PASSWORD
+    local SAM_INSTALL_REPOS_URL
+    local SAM_INSTALL_USER
+    local LIST_REPO_IMAGES
+    local CURRENT_IMAGE
 
-            #Exist repository in db?
-            SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`
-            if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"` ]];then
-                echo -e "\E[31mERROR: Not found default repository in db.">&2;tput sgr0;
-                exit 1;
-            fi;
-            #Reade info from db
-            SAM_INSTALL_PASSWORD=`sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'" | base64 -d`;
-            SAM_INSTALL_REPOS_URL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
-            #Get list images
-            SAM_INSTALL_USER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUser from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'" | sed 's/[\ \t]//g'`;
-            if [ -n $SAM_INSTALL_USER ];then
-                SAM_INSTALL_REPOS_URL=$SAM_INSTALL_USER:$SAM_INSTALL_PASSWORD@$SAM_INSTALL_REPOS_URL;
-            fi;
-            #Get version images to repository
-            CURRENT_IMAGE='';
-            echo;
-            echo "      List image versions:";
-            echo;
-            for CURRENT_IMAGE in `curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed 's/,/,\n/g' | awk -F '"' '{print $2}'`
-            do
-                echo -n -e "\E[33m$CURRENT_IMAGE" | tr -d '\n' ; tput sgr0;
-                echo -e "`curl https://$SAM_INSTALL_REPOS_URL/v2/$CURRENT_IMAGE/tags/list -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed -E 's/\"/\ /g;s/\ ,/,/g'`";
-            done;
+    #Exist repository in db?
+    SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`
+    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"` ]];then
+        echo -e "\E[31mERROR: Not found default repository in db.">&2;tput sgr0;
+        exit 1;
+    fi;
+    #Reade info from db
+    SAM_INSTALL_PASSWORD=`sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'" | base64 -d`;
+    SAM_INSTALL_REPOS_URL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
+    #Get list images
+    SAM_INSTALL_USER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUser from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'" | sed 's/[\ \t]//g'`;
+    if [ -n $SAM_INSTALL_USER ];then
+        SAM_INSTALL_REPOS_URL=$SAM_INSTALL_USER:$SAM_INSTALL_PASSWORD@$SAM_INSTALL_REPOS_URL;
+    fi;
+    #Get version images to repository
+    CURRENT_IMAGE='';
+    echo;
+    echo "      List image versions:";
+    echo;
+    if [ -n $1 ];then
+       LIST_IMAGE_VERSION=`curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed 's/,/,\n/g' | awk -F '"' '{print $2}' | grep "$1"`
+    else
+       LIST_IMAGE_VERSION=`curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed 's/,/,\n/g' | awk -F '"' '{print $2}'`
+    fi;
+    for CURRENT_IMAGE in `echo "$LIST_IMAGE_VERSION"`
+    do
+        echo -n -e "\E[33m$CURRENT_IMAGE" | tr -d '\n' ; tput sgr0;
+        echo -e "`curl https://$SAM_INSTALL_REPOS_URL/v2/$CURRENT_IMAGE/tags/list -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed -E 's/\"/\ /g;s/\ ,/,/g'`";
+    done;
 }
+
 help_func(){
     case $1 in
         install|in)
