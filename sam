@@ -147,7 +147,7 @@ fi;
 SAM_DB_TABLE_INSTALL_APPS="Apps";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_APPS'"` ]];then
         echo;
-        echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_INSTALL_APPS.";
+        echo "Creating table $SAM_DB_TABLE_INSTALL_APPS.";
         echo;
         sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT,ImageRepos INTEGER);";
 fi;
@@ -156,7 +156,7 @@ SAM_DB_TABLE_REPOS="Repos";
 SAM_DB_TABLE_REPOS_URL="smilart";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_REPOS'"` ]];then
         echo;
-        echo "Not found db sam: $SAM_DB_SQLITE. Creating db - $SAM_DB_TABLE_REPOS.";
+        echo "Creating table $SAM_DB_TABLE_REPOS.";
         echo;
         sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);";
         echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL";
