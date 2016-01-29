@@ -22,6 +22,8 @@ fi;
 # Copy META from image
 # copy_meta_func <DockerId>
 copy_meta_func() {
+        local file
+
         TEMPLATE_DIR=`mktemp -d`;
         docker run -i -t --rm -v $TEMPLATE_DIR:$TEMPLATE_DIR  --net=host --entrypoint="cp" $1 -r /meta $TEMPLATE_DIR/meta 2>&1 > /dev/null;
         if [[ $? -ne 0 ]]; then
@@ -29,6 +31,10 @@ copy_meta_func() {
                 rm -rf $TEMPLATE_DIR;
                 exit 1;
         fi;
+        # Remove files *.expand
+        for file in $(find $TEMPLATE_DIR/meta -type f -name "*.expand"); do
+           rm -f $file;
+        done
 }
 
 # Uninstall apps function
