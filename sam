@@ -171,7 +171,6 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
 fi;
 unset SAM_DB_TABLE_REPOS_URL;
 
-
 ###Help section
 USAGE="
   Usage:
@@ -258,14 +257,14 @@ Print application info.
 ";
 
 USAGE_ADDREPO="
-addrepo (ar) [--default] [--name <name>] [--url <url>] [--username <username>] [--password <password>] [--email <email>]
+addrepo (ar) [--default] [--name <name>] [--server <hostname>] [--username <username>] [--password <password>] [--email <email>]
 
 Add a repository to the system.
 
   Command options:
     --default                   Add the repository as default.
     --name                      Add a descriptive name for the repository.
-    --url                       Add a url for the repository.
+    --server                    Add a hostname to server docker-registry.
     --username                  Optional. Add the user name for authentication.
     --password                  Optional. Add the password for authentication.
     --email                     Optional. Add the email for authentication.
@@ -280,14 +279,14 @@ Remove repository specified by name or number.
 ";
 
 USAGE_MODIFYREPO="
-modifyrepo (mr) <id> [--default] [--name <name>] [--url <url>] [--username <username>] [--password <password>] [--email <email>]
+modifyrepo (mr) <id> [--default] [--name <name>] [--server <hostname>] [--username <username>] [--password <password>] [--email <email>]
 
 Modify properties of repositories specified.
 
   Command options:
 -d  --default                   Set priority of the repository.
     --name                      Set a descriptive name for the repository.
-    --url                       Set a url for the repository.
+    --server                    Set a server name to docker-registry.
     --username                  Set the user name for authentication to the server.
     --password                  Set the password for authentication to the server.
     --email                     Set the email for authentication to the server. 
@@ -541,7 +540,7 @@ info_func(){
 
 addrepo_func(){
     #It is correct name and url?
-    if [[ -z $GETOPT_NAME ]] || [[ -z $GETOPT_URL ]];then
+    if [[ -z $GETOPT_NAME ]] || [[ -z $GETOPT_SERVER ]];then
          echo "$USAGE_ADDREPO";
          echo -e "\E[31mERROR: Argument for 'sam addrepo' is not correct.">&2;tput sgr0;
          exit 1;
@@ -554,7 +553,7 @@ addrepo_func(){
     GETOPT_PASSWORD=`echo "$GETOPT_PASSWORD" | base64`
 
     #save in db
-    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('$GETOPT_DEFAULT','$GETOPT_NAME','$GETOPT_URL','$GETOPT_USERNAME','$GETOPT_PASSWORD','$GETOPT_EMAIL');";
+    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('$GETOPT_DEFAULT','$GETOPT_NAME','$GETOPT_SERVER','$GETOPT_USERNAME','$GETOPT_PASSWORD','$GETOPT_EMAIL');";
     if [[ -n $GETOPT_DEFAULT ]];then
        sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=''";
        sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where ReposName='$GETOPT_NAME'";
@@ -601,11 +600,11 @@ modifyrepo_func(){
         exit 1;
     fi;
     GETOPT_NAME=`[[ -z $GETOPT_NAME ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_NAME`;
-    GETOPT_URL=`[[ -z $GETOPT_URL ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_URL`;
+    GETOPT_SERVER=`[[ -z $GETOPT_SERVER ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_SERVER`;
     GETOPT_USERNAME=`[[ -z $GETOPT_USERNAME ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposUser from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_USERNAME`;
     GETOPT_PASSWORD=`[[ -z $GETOPT_PASSWORD ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_PASSWORD | base64`;
     GETOPT_EMAIL=`[[ -z $GETOPT_EMAIL ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposEmail from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_EMAIL`;
-    sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposName='$GETOPT_NAME',ReposUrl='$GETOPT_URL',ReposUser='$GETOPT_USERNAME',ReposPass='$GETOPT_PASSWORD',ReposEmail='$GETOPT_EMAIL' where id='$1'";
+    sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposName='$GETOPT_NAME',ReposUrl='$GETOPT_SERVER',ReposUser='$GETOPT_USERNAME',ReposPass='$GETOPT_PASSWORD',ReposEmail='$GETOPT_EMAIL' where id='$1'";
     if [[ $GETOPT_DEFAULT == '*' ]];then
         sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=''";
         sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where id='$1'";
@@ -717,13 +716,13 @@ help_func(){
 }
 
 ###Case section
-SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,url:,username:,password:,email: --name "sam" -- "$@"`
+SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,email: --name "sam" -- "$@"`
 eval set -- "$SAM_ARGUMENT";
 unset SAM_ARGUMENT;
 unset GETOPT_RAW;
 unset GETOPT_DEFAULT;
 unset GETOPT_NAME;
-unset GETOPT_URL;
+unset GETOPT_SERVER;
 unset GETOPT_USERNAME;
 unset GETOPT_PASSWORD;
 unset GETOPT_EMAIL;
@@ -751,8 +750,8 @@ while true ; do
             GETOPT_NAME=$2;
             shift 2
             ;;
-        --url)
-            GETOPT_URL=$2;
+        --server)
+            GETOPT_SERVER=$2;
             shift 2
             ;;
         --username)
