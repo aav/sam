@@ -664,8 +664,8 @@ search_func(){
     fi;
     for CURRENT_IMAGE in `echo "$LIST_IMAGE_VERSION"`
     do
-        echo -n -e "\E[33m$CURRENT_IMAGE" | tr -d '\n' ; tput sgr0;
-        echo -e "`curl https://$SAM_INSTALL_REPOS_URL/v2/$CURRENT_IMAGE/tags/list -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed -E 's/\"/\ /g;s/\ ,/,/g'`";
+        echo -n -e "\E[33m$CURRENT_IMAGE  " | tr -d '\n' ; tput sgr0;
+        echo -e "`curl https://$SAM_INSTALL_REPOS_URL/v2/$CURRENT_IMAGE/tags/list -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed -E 's/\"//g;s/,/\n/g' | sort --version-sort -r | sed '$! s/$/,/' | tr '\n' ' '`";
     done;
 }
 
