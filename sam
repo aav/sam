@@ -318,6 +318,7 @@ install_func(){
     local SAM_INSTALL_USER;
     local SAM_INSTALL_PASSWORD;
     local SAM_INSTALL_EMAIL;
+    local SAM_INSTALL_COMMAND_OPTIONS;
     local SAM_PREFIX_IMAGE_DOCKER;
 
     SAM_INSTALL_VERSION=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'`;
@@ -347,7 +348,12 @@ install_func(){
         SAM_INSTALL_PASSWORD=`sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
         SAM_INSTALL_EMAIL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposEmail from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
         SAM_INSTALL_REPOS_URL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
-        docker login --username=$SAM_INSTALL_USER --password=`echo "$SAM_INSTALL_PASSWORD" | base64 -d` --email=$SAM_INSTALL_EMAIL $SAM_PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
+        if [ -n "$SAM_INSTALL_EMAIL" ];then
+            SAM_INSTALL_COMMAND_OPTIONS="--email=$SAM_INSTALL_EMAIL";
+        else
+            SAM_INSTALL_COMMAND_OPTIONS='--email=none';
+        fi;
+        docker login --username=$SAM_INSTALL_USER --password=`echo "$SAM_INSTALL_PASSWORD" | base64 -d` $SAM_INSTALL_COMMAND_OPTIONS $SAM_PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
         if [[ $? -ne 0 ]]; then
             echo -e "\E[31mERROR: Wrong login/password or url from repository.">&2;tput sgr0;
             exit 1;
