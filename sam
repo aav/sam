@@ -1,6 +1,6 @@
 #!/bin/bash
 #set -vx
-SAM_VERSION='1.3';
+SAM_VERSION='1.4';
 
 if [[ -z $SAM_DB_LIST ]];then
         SAM_DB_LIST='/var/db/sam/list_installed';
@@ -329,7 +329,7 @@ install_func(){
     SAM_INSTALL_APP=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $1}'`;
     SAM_INSTALL_REPOS_NAME=`echo "$1" | sed "s#\$SAM_INSTALL_APP\:\$SAM_INSTALL_VERSION##g" | sed 's/\/$//'`;
     if [[ -z $SAM_INSTALL_REPOS_NAME ]];then
-        SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`	
+        SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
     fi;
     #Exist repository in db?
     if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"` ]];then
@@ -367,7 +367,7 @@ install_func(){
         SAM_INSTALL_REPO_ID='';
     fi;
     #save in db
-    SAM_INSTALL_DOCKER_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION" | awk -F ':' '{print $NF}'`;
+    SAM_INSTALL_DOCKER_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION:" | awk -F ':' '{print $NF}'`;
     if [[ -z $SAM_INSTALL_DOCKER_ID ]];then
         echo -e "\E[31mERROR: Not found smilart applications '$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'.">&2;tput sgr0;
         exit 1;
@@ -423,7 +423,7 @@ installfile_func(){
         exit 1;
     fi;
     # Save in db
-    SAM_INSTALLFILE_DOCKER_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION" | awk -F ':' '{print $NF}'`;
+    SAM_INSTALLFILE_DOCKER_ID=`docker images --no-trunc | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION:" | awk -F ':' '{print $NF}'`;
     SAM_INSTALLFILE_REPO_ID=0;
     save_app_in_db $SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID;
     if [[ $? -ne 0 ]]; then
