@@ -1,6 +1,6 @@
 #!/bin/bash
 #set -vx
-SAM_VERSION='1.4';
+SAM_VERSION='1.5';
 
 if [[ -z $SAM_DB_LIST ]];then
         SAM_DB_LIST='/var/db/sam/list_installed';
@@ -462,17 +462,17 @@ upgrade_func(){
     I=0;
     while [ $I -lt 3 ]; do
         I=$[$I+1];
+        sleep 3;
         /usr/bin/apps-monitor smilartos-update > /dev/null 2>&1;
         curl "$SAM_URL_UPDATE" > /dev/null 2>&1;
         if [ $? -ne 0 ];then
             echo -e "\E[33mWARN: Server update is not available. Reconnect after 3 seconds..";tput sgr0;
-            sleep 3;
             continue;
         else
             break;
         fi;
     done;
-    if [ $I -eq 4 ];then
+    if [ $I -eq 3 ];then
         echo -e "\E[31mERROR: Stop upgrading. Url $SAM_URL_UPDATE is bad.">&2;tput sgr0;
         exit 1;
     fi;
