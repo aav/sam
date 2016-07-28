@@ -857,7 +857,7 @@ while true ; do
         *)
             echo "$USAGE";
             echo;
-            exit 0
+            exit 1
             ;;
     esac
 done
