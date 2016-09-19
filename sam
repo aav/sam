@@ -88,7 +88,7 @@ delete_app_to_db_func() {
 }
 
 create_connect_func() {
-        echo "Creating 'connect' function.";
+        echo "Add 'connect' command in the system.";
         echo '#!/bin/bash 
 
 connect_func(){
