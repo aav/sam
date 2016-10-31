@@ -1,6 +1,6 @@
 #!/bin/bash
 #set -vx
-SAM_VERSION='1.5';
+SAM_VERSION='1.6';
 
 if [[ -z $SAM_DB_LIST ]];then
         SAM_DB_LIST='/var/db/sam/list_installed';
@@ -70,7 +70,7 @@ create_tag_app(){
         if [[ -n $SAM_APP_LABEL ]];then
                 echo;
                 echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2' from app";tput sgr0
-                docker tag -f $1 $SAM_APP_LABEL/$2;
+                docker tag $1 $SAM_APP_LABEL/$2;
                 if [[ $? -ne 0 ]]; then
                     echo -e "\E[31mERROR: Not created app tag.">&2;tput sgr0;
                     exit 1;
