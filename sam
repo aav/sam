@@ -1,6 +1,6 @@
 #!/bin/bash
 #set -vx
-SAM_VERSION='1.6';
+SAM_VERSION='1.7';
 
 if [[ -z $SAM_DB_LIST ]];then
         SAM_DB_LIST='/var/db/sam/list_installed';
@@ -218,9 +218,9 @@ Install smilart applications with specified capabilities from gzip and tar archi
 ";
 
 USAGE_UPGRADE="
-upgrade (up) <path|url>
+upgrade (up) <url>
 
-Update Smilart OS from gzip archive. Or start update engine client with parameters url.
+Update Core OS with the update engine client.
 
 ";
 
@@ -443,17 +443,9 @@ upgrade_func(){
     local PATH_UPDATE_SMILARTOS='/etc/coreos/update.conf';
     local SAM_URL_UPDATE;
     local I;
-    
+
     if [ -e $1 ];then
-        #Exist app in db?
-        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='smilartos-update'"` ]];then
-            echo -e "Removing old app \"smilartos-update\".";
-            remove_func smilartos-update 
-        fi;
-        #Install app
-        installfile_func "$1" 
-        #Generate url update
-        SAM_URL_UPDATE="http://user:user@smilartos-update.smilartservices.local:8002/"
+        SAM_URL_UPDATE="http://localhost:8002/"
     else
         SAM_URL_UPDATE="$1"; 
     fi;
@@ -462,11 +454,10 @@ upgrade_func(){
     I=0;
     while [ $I -lt 3 ]; do
         I=$[$I+1];
-        sleep 3;
-        /usr/bin/apps-monitor smilartos-update > /dev/null 2>&1;
         curl "$SAM_URL_UPDATE" > /dev/null 2>&1;
         if [ $? -ne 0 ];then
             echo -e "\E[33mWARN: Server update is not available. Reconnect after 3 seconds..";tput sgr0;
+            sleep 3;
             continue;
         else
             break;
