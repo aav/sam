@@ -29,7 +29,20 @@ copy_meta_func() {
         if [[ $? -ne 0 ]]; then
                 echo -e "\E[31mERROR: Directory '/meta' not found in image.">&2;tput sgr0;
                 rm -rf $TEMPLATE_DIR;
-                exit 1;
+                if [ -n `sqlite3 $SAM_DB_SQLITE "select ImageName from $SAM_DB_TABLE_INSTALL_APPS where DockerId=$1"` ] ; then
+                    read -r -p "Remove the app from sam repository? [y/N] " response
+                    case $response in
+                        [yY][eE][sS]|[yY])
+                          delete_app_to_db_func $1;
+                          exit 0
+                          ;;
+                        *)
+                          exit 0
+                          ;;
+                    esac
+                else
+                    exit 1;
+                fi;
         fi;
         # Remove files *.expand
         for file in $(find $TEMPLATE_DIR/meta -type f -name "*.expand"); do
@@ -590,7 +603,6 @@ removerepo_func(){
     else
             echo -e "\E[31mERROR: Repository name and number '$1' not found in db.">&2;tput sgr0;
             exit 1;
-
     fi;
 }
 
