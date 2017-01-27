@@ -2,22 +2,6 @@
 #set -vx
 SAM_VERSION='1.7';
 
-if [[ -z $SAM_DB_LIST ]];then
-        SAM_DB_LIST='/var/db/sam/list_installed';
-fi;
-
-if [[ -z $BIN_DIR ]]; then
-        BIN_DIR='/opt/bin';
-fi;
-
-if [[ ! -d /var/db/sam ]];then
-        mkdir -p '/var/db/sam';
-fi;
-
-if [[ -z $SAM_DB_SQLITE ]];then
-        SAM_DB_SQLITE='/var/db/sam/smilart.db';
-fi;
-
 ## Functions
 # Copy META from image
 # copy_meta_func <DockerId>
@@ -125,8 +109,30 @@ connect_func $@;' > $BIN_DIR/connect;
         fi;
 }
 
-### Commands
+# save_app_in_db <DockerId> <ImageName> <ImageVersion> <ImageRepos NUMBER>
+save_app_in_db(){
+    echo  "Save app to db.";
+    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos) values ('$1','$2','$3','$4');";
+}
+
+## Testing
 #
+if [[ -z $SAM_DB_LIST ]];then
+        SAM_DB_LIST='/var/db/sam/list_installed';
+fi;
+
+if [[ -z $BIN_DIR ]]; then
+        BIN_DIR='/opt/bin';
+fi;
+
+if [[ ! -d /var/db/sam ]];then
+        mkdir -p '/var/db/sam';
+fi;
+
+if [[ -z $SAM_DB_SQLITE ]];then
+        SAM_DB_SQLITE='/var/db/sam/smilart.db';
+fi;
+
 if [[ -z `which docker` ]]; then
         echo -e "\E[31mERROR: Not found command 'docker' in system.">&2;tput sgr0;
         exit 1;
@@ -162,7 +168,7 @@ if [[ -z `which sqlite3` ]]; then
         exit 1;
 fi;
 
-# Exist db?
+# Exist dbs?
 SAM_DB_TABLE_INSTALL_APPS="Apps";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_APPS'"` ]];then
         echo;
@@ -184,7 +190,7 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
 fi;
 unset SAM_DB_TABLE_REPOS_URL;
 
-###Help section
+## Help section
 USAGE="
   Usage:
         sam [--global-options] <command> [--command-options] [arguments]
@@ -313,13 +319,7 @@ List all defined repositories.
     --raw                       List all defined repositories in RAW format.
 ";
 
-# save_app_in_db <DockerId> <ImageName> <ImageVersion> <ImageRepos NUMBER>
-save_app_in_db(){
-    echo  "Save app to db.";
-    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos) values ('$1','$2','$3','$4');";
-}
-
-###Function for case
+## Function for case
 install_func(){
 
     local SAM_INSTALL_DOCKER_ID;
