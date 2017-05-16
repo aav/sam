@@ -133,6 +133,10 @@ if [[ -z $SAM_DB_SQLITE ]];then
         SAM_DB_SQLITE='/var/db/sam/smilart.db';
 fi;
 
+if [[ -z $SAM_HISTORY ]];then
+        SAM_HISTORY='/var/db/sam/history';
+fi;
+
 if [[ -z `which docker` ]]; then
         echo -e "\E[31mERROR: Not found command 'docker' in system.">&2;tput sgr0;
         exit 1;
@@ -649,13 +653,14 @@ listrepos_func(){
 
 search_func(){
 
-    local CURRENT_IMAGE
     local SAM_INSTALL_REPOS_NAME
     local SAM_INSTALL_PASSWORD
     local SAM_INSTALL_REPOS_URL
     local SAM_INSTALL_USER
-    local LIST_REPO_IMAGES
+    local CURRENT_VERSION
     local CURRENT_IMAGE
+    local LIST_IMAGES
+    local FLUG_SHOW_VERSIONS
 
     #Exist repository in db?
     SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`
@@ -673,18 +678,39 @@ search_func(){
     fi;
     #Get version images to repository
     CURRENT_IMAGE='';
+    CURRENT_VERSION='';
+    echo > $SAM_HISTORY; 
     echo;
     echo "      List image versions:";
     echo;
-    if [ -n $1 ];then
-       LIST_IMAGE_VERSION=`curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed 's/,/,\n/g' | awk -F '"' '{print $2}' | grep "$1"`
-    else
-       LIST_IMAGE_VERSION=`curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed 's/,/,\n/g' | awk -F '"' '{print $2}'`
-    fi;
-    for CURRENT_IMAGE in `echo "$LIST_IMAGE_VERSION"`
+
+    LIST_IMAGES="`curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed 's/,/,\n/g' | awk -F '"' '{print $2}'`"
+
+    for CURRENT_IMAGE in `echo "$LIST_IMAGES"`
     do
-        echo -n -e "\E[33m$CURRENT_IMAGE  " | tr -d '\n' ; tput sgr0;
-        echo -e "`curl https://$SAM_INSTALL_REPOS_URL/v2/$CURRENT_IMAGE/tags/list -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed -E 's/\"//g;s/,/\n/g' | sort --version-sort -r | sed '$! s/$/,/' | tr '\n' ' '`";
+	if [ -n "`echo \"$CURRENT_IMAGE\" | grep \"$1\"`" ];then
+	    FLUG_SHOW_VERSIONS=true
+	else
+	    FLUG_SHOW_VERSIONS=false
+        fi;
+
+	if [[ ${FLUG_SHOW_VERSIONS} == true ]];then
+	    echo -n -e "\E[33m$CURRENT_IMAGE" | tr -d '\n' ; tput sgr0;
+	fi;
+	local sumb_brake=':'
+	for CURRENT_VERSION in `curl https://$SAM_INSTALL_REPOS_URL/v2/$CURRENT_IMAGE/tags/list -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed -E 's/\"//g;s/,/\n/g' | sort --version-sort -r`
+	do
+        	if [[ ${FLUG_SHOW_VERSIONS} == true ]];then
+            		echo -n -e "$sumb_brake$CURRENT_VERSION" | tr -d '\n';
+			sumb_brake=', '
+        	fi;
+		
+		echo "${CURRENT_IMAGE}:${CURRENT_VERSION}" >> $SAM_HISTORY
+	done;
+	 
+	if [[ ${FLUG_SHOW_VERSIONS} == true ]];then
+            echo 
+        fi;
     done;
 }
 

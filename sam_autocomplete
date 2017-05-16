@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# bash completion file for sam subcommands
+#
+# This script provides supports completion of:
+#  - command options
+#  - app and version names
+#  - image repos and tags
+#  - filepaths
+#
+# To enable the completions either:
+#  - place this file in /etc/bash_completion.d
+#  or
+#  - copy this file and add the line below to your .bashrc after
+#    bash completion features are loaded
+#     . sam_autocomplete
+#
+# Note:
+# Currently, the completions will not work if 
+# not started subcommand 'sam search'
+#
+# example from /etc/bash_completion.d/docker.io
+
+_sam_in()
+{
+	local hist='/var/db/sam/history'
+	local apps="$(cat $hist)"
+	COMPREPLY=( $( compgen -W "$apps" -- "$cur" ) )
+}
+
+_sam_rm()
+{
+	local names="$(sam list --raw | awk -F '|' '{print $1}')"
+	COMPREPLY=( $( compgen -W "$names" -- "$cur" ) )
+}
+
+_sam_info()
+{
+        local hist='/var/db/sam/history'
+        local apps="$(cat $hist)"
+        COMPREPLY=( $( compgen -W "$apps" -- "$cur" ) )
+}
+
+_sam()
+{
+	local commands="
+			help
+			in
+			installfile
+			rm
+			list
+			search
+			info
+			upgrade
+			addrepo
+			removerepo
+			modifyrepo
+			listrepos
+		"
+
+	local cur=${COMP_WORDS[COMP_CWORD]}
+	COMPREPLY=()
+
+#	case "${COMP_WORDS[COMP_CWORD]}" in
+#		-*) COMPREPLY=( $(compgen -W '--debug --help' -- $cur) )
+#		    return 0
+#		    ;;
+#		*) #COMPREPLY=( $(compgen -W "$commands" -- $cur) )
+ #                   #return 0
+                    case "${COMP_WORDS[COMP_CWORD]}" in
+		 	in|'in ') return 0
+	                    COMPREPLY=();;
+			rm|"rm ") return 0
+       	            	    COMPREPLY=();;
+			info|"info ") return 0
+                    	    COMPREPLY=();;
+			help|"help ") return 0
+                            COMPREPLY=();;
+			installfile|"installfile ") return 0
+                            COMPREPLY=();;
+			list|"list ") return 0
+                            COMPREPLY=();;
+			search|"search ") return 0
+                            COMPREPLY=();;
+			upgrade|"upgrade ") return 0
+                            COMPREPLY=();;
+			addrepo|"addrepo ") return 0
+                            COMPREPLY=();;
+			removerepo|"removerepo ") return 0
+                            COMPREPLY=();;
+			modifyrepo|"modifyrepo ") return 0
+                            COMPREPLY=();;
+			listrepos|"listrepos ") return 0
+                            COMPREPLY=();;
+		 	*) COMPREPLY=( $(compgen -W "$commands" -- $cur) )
+                    	    return 0
+                    	    ;;
+		    esac
+#		    ;;
+#	esac
+	
+#	if [[ "$cur" == -* ]]; then
+#		COMPREPLY=( $(compgen -W '--debug --help' -- $cur) )
+#		return 0
+#       fi		
+#	
+#	if [[ "$cur" == h* ]]; then
+#		COMPREPLY=( $(compgen -W 'help' -- $cur) )	
+#	fi;
+        return 0
+}
+
+complete -F _sam sam
