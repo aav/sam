@@ -22,7 +22,7 @@
 # example from /etc/bash_completion.d/docker.io
 
 _sam_in()
-{
+{	
 	local hist='/var/db/sam/history'
 	local apps="$(cat $hist)"
 	COMPREPLY=( $( compgen -W "$apps" -- "$cur" ) )
@@ -45,8 +45,10 @@ _sam()
 {
 	local commands="
 			help
+			install
 			in
 			installfile
+			remove
 			rm
 			list
 			search
@@ -59,55 +61,36 @@ _sam()
 		"
 
 	local cur=${COMP_WORDS[COMP_CWORD]}
+	local prev=${COMP_WORDS[COMP_CWORD-1]}
+	COMP_WORDBREAKS=${COMP_WORDBREAKS//:}
 	COMPREPLY=()
 
-#	case "${COMP_WORDS[COMP_CWORD]}" in
-#		-*) COMPREPLY=( $(compgen -W '--debug --help' -- $cur) )
-#		    return 0
-#		    ;;
-#		*) #COMPREPLY=( $(compgen -W "$commands" -- $cur) )
- #                   #return 0
-                    case "${COMP_WORDS[COMP_CWORD]}" in
-		 	in|'in ') return 0
-	                    COMPREPLY=();;
-			rm|"rm ") return 0
-       	            	    COMPREPLY=();;
-			info|"info ") return 0
-                    	    COMPREPLY=();;
-			help|"help ") return 0
-                            COMPREPLY=();;
-			installfile|"installfile ") return 0
-                            COMPREPLY=();;
-			list|"list ") return 0
-                            COMPREPLY=();;
-			search|"search ") return 0
-                            COMPREPLY=();;
-			upgrade|"upgrade ") return 0
-                            COMPREPLY=();;
-			addrepo|"addrepo ") return 0
-                            COMPREPLY=();;
-			removerepo|"removerepo ") return 0
-                            COMPREPLY=();;
-			modifyrepo|"modifyrepo ") return 0
-                            COMPREPLY=();;
-			listrepos|"listrepos ") return 0
-                            COMPREPLY=();;
-		 	*) COMPREPLY=( $(compgen -W "$commands" -- $cur) )
-                    	    return 0
-                    	    ;;
+	case "${COMP_WORDS[COMP_CWORD]}" in
+		-*) COMPREPLY=( $(compgen -W '--debug --help' -- $cur) )
+		    return 0
+		    ;;
+		*) 
+		    if [[ -z "`echo $commands | grep $prev`" ]];then
+			COMPREPLY=( $(compgen -W "$commands" -- $cur) )
+			return 0
+		    else
+			if [[ "$prev" == 'in' || "$prev" == 'install' ]];then
+				_sam_in;
+				return 0
+			fi;
+			if [[ "$prev" == 'rm' || "$prev" == 'remove' ]];then
+				_sam_rm;
+				return 0
+                        fi;
+			if [[ "$prev" == 'info' ]];then
+				_sam_info;
+                                return 0
+                        fi;
+			COMPREPLY=()
+		        return 0
+		    fi; 
 		    esac
-#		    ;;
-#	esac
-	
-#	if [[ "$cur" == -* ]]; then
-#		COMPREPLY=( $(compgen -W '--debug --help' -- $cur) )
-#		return 0
-#       fi		
-#	
-#	if [[ "$cur" == h* ]]; then
-#		COMPREPLY=( $(compgen -W 'help' -- $cur) )	
-#	fi;
         return 0
 }
-
+set completion-query-items 10
 complete -F _sam sam
