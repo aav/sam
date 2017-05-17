@@ -1,6 +1,6 @@
 #!/bin/bash
 #set -vx
-SAM_VERSION='1.8';
+SAM_VERSION='1.9';
 
 ## Functions
 # Copy META from image
@@ -205,7 +205,7 @@ USAGE="
 
 
   Commands:
-        help, ?                 Print help.
+        help                    Print help.
 
      Software Management:
         install, in             Install applications.
@@ -298,6 +298,13 @@ USAGE_REMOVEREPO="
 removerepo (rr) <id|name>
 
 Remove repository specified by name or number.
+
+";
+
+USAGE_PURGE="
+purge
+
+Run removing old images from the system.
 
 ";
 
@@ -714,6 +721,24 @@ search_func(){
     done;
 }
 
+purge_func(){
+	local PURGE_LIST_APPS="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId FROM $SAM_DB_TABLE_INSTALL_APPS\"`"
+	local CHECK_APP
+	echo -e "Creating image checklist.\n"
+	local CHECKLIST="`docker images -q`"
+	echo -e "\nStarting garbage collect of sam apps.\n";
+	for CHECK_APP in `echo "$CHECKLIST"` 
+	do
+	    if [[ -z `echo "$PURGE_LIST_APPS" | grep "$CHECK_APP"` ]];then
+		docker rmi -f "$CHECK_APP"	
+		echo
+	    fi
+	done
+	
+	echo -e "\E[32mCollecting garbage is complete.";tput sgr0;
+	
+}
+
 help_func(){
     case $1 in
         install|in)
@@ -734,6 +759,10 @@ help_func(){
             ;;
         list)
             echo "$USAGE_LIST";
+            exit 0
+            ;;
+	purge)
+            echo "$USAGE_PURGE";
             exit 0
             ;;
         info)
@@ -854,6 +883,11 @@ while true ; do
                 list)
                     shift;
                     list_func;
+                    exit 0
+                    ;;
+		purge)
+		    shift;
+                    purge_func;
                     exit 0
                     ;;
                 install|in)
