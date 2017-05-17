@@ -1,6 +1,6 @@
 #!/bin/bash
 #set -vx
-SAM_VERSION='1.7';
+SAM_VERSION='1.8';
 
 ## Functions
 # Copy META from image
@@ -383,22 +383,23 @@ install_func(){
         echo "Find local application.";
         SAM_INSTALL_REPO_ID='';
     fi;
-    #save in db
     SAM_INSTALL_DOCKER_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION:" | awk -F ':' '{print $NF}'`;
     if [[ -z $SAM_INSTALL_DOCKER_ID ]];then
         echo -e "\E[31mERROR: Not found smilart applications '$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'.">&2;tput sgr0;
         exit 1;
     fi;
+    create_tag_app $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
+    echo;
+    echo -e "\E[32mInstalling app $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION.";tput sgr0;
+    install_app_func $SAM_INSTALL_DOCKER_ID;    
+
+    docker logout 2>&1 > /dev/null;
+    
     save_app_in_db $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID;
     if [[ $? -ne 0 ]]; then
         echo -e "\E[31mERROR: Not save in db. '$SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID'">&2;tput sgr0;
         exit 1;
     fi;
-    create_tag_app $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
-    echo;
-    echo -e "\E[32mInstalling app $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION.";tput sgr0;
-    install_app_func $SAM_INSTALL_DOCKER_ID;
-    docker logout 2>&1 > /dev/null;
     echo -e "\E[32mApp $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION installed.";tput sgr0;
     echo;
 }
@@ -439,19 +440,18 @@ installfile_func(){
         echo -e "\E[31mERROR: Loading image.">&2;tput sgr0;
         exit 1;
     fi;
-    # Save in db
     SAM_INSTALLFILE_DOCKER_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION:" | awk -F ':' '{print $NF}'`;
     SAM_INSTALLFILE_REPO_ID=0;
-    save_app_in_db $SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID;
-    if [[ $? -ne 0 ]]; then
-        echo -e "\E[31mERROR: Not saving in db. '$SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID'">&2;tput sgr0;
-        exit 1;
-    fi;
     # Install app
     create_tag_app $SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP:$SAM_INSTALLFILE_VERSION;
     echo;
     echo -e "\E[32mInstalling app $SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION.";tput sgr0;
     install_app_func $SAM_INSTALLFILE_DOCKER_ID;
+    save_app_in_db $SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID;
+    if [[ $? -ne 0 ]]; then
+        echo -e "\E[31mERROR: Not saving in db. '$SAM_INSTALLFILE_DOCKER_ID $SAM_INSTALLFILE_APP $SAM_INSTALLFILE_VERSION $SAM_INSTALLFILE_REPO_ID'">&2;tput sgr0;
+        exit 1;
+    fi;
     echo -e "\E[32mApp $SAM_INSTALLFILE_NAME:$SAM_INSTALLFILE_VERSION installed.";tput sgr0;
     echo;
 }
