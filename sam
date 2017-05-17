@@ -1,6 +1,12 @@
 #!/bin/bash
+
 #set -vx
 SAM_VERSION='1.9';
+
+#Configuring
+BIN_DIR=${BIN_DIR:-/opt/bin}
+SAM_DB_SQLITE=${SAM_DB_SQLITE:-/var/db/sam/smilart.db}
+SAM_HISTORY=${SAM_HISTORY:-/var/db/sam/history}
 
 ## Functions
 # Copy META from image
@@ -117,24 +123,8 @@ save_app_in_db(){
 
 ## Testing
 #
-if [[ -z $SAM_DB_LIST ]];then
-        SAM_DB_LIST='/var/db/sam/list_installed';
-fi;
-
-if [[ -z $BIN_DIR ]]; then
-        BIN_DIR='/opt/bin';
-fi;
-
 if [[ ! -d /var/db/sam ]];then
         mkdir -p '/var/db/sam';
-fi;
-
-if [[ -z $SAM_DB_SQLITE ]];then
-        SAM_DB_SQLITE='/var/db/sam/smilart.db';
-fi;
-
-if [[ -z $SAM_HISTORY ]];then
-        SAM_HISTORY='/var/db/sam/history';
 fi;
 
 if [[ -z `which docker` ]]; then
