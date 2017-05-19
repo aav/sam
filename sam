@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #set -vx
-SAM_VERSION='1.10';
+SAM_VERSION='1.11';
 
 #Configuring
 BIN_DIR=${BIN_DIR:-/opt/bin}
@@ -121,6 +121,21 @@ save_app_in_db(){
     sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos) values ('$1','$2','$3','$4');";
 }
 
+# check_app_in_db <DockerId> <ImageName> <ImageVersion>
+#if app exist or not found label com.smilart.multiple_versions="supported" then error
+check_app_in_db(){
+    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND ImageVersion='$3'"` ]];then
+        echo -e "\E[31mERROR: Apps $2:$3 exist in db.">&2;tput sgr0;
+        exit 1;
+    fi;
+    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2'"` ]];then
+        if [[ "supported" != "`docker inspect $1 | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'`" ]];then
+            echo -e "\E[31mERROR: Apps with name \"$2\" exist in db.">&2;tput sgr0;
+            exit 1;
+        fi;
+    fi;
+}
+
 ## Testing
 #
 if [[ ! -d /var/db/sam ]];then
@@ -231,7 +246,7 @@ Update Core OS with the update engine client.
 ";
 
 USAGE_REMOVE="
-remove (rm) <name>
+remove (rm) <app>[:<version>]
 
 Remove smilart applications with specified capabilities.
 
@@ -349,12 +364,7 @@ install_func(){
             echo "May be incorrectly created archive.";
             exit 1;
         fi;
-
-        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INSTALL_APP'"` ]];then
-            echo -e "\E[31mERROR: Application name '$SAM_INSTALL_APP' exist in db.">&2;tput sgr0;
-            exit 1;
-
-        fi;
+	
         echo "Loading image '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'.";
         docker load -i $1;
         if [[ $? -ne 0 ]]; then
@@ -363,6 +373,7 @@ install_func(){
         fi;
 
         SAM_INSTALL_DOCKER_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION:" | awk -F ':' '{print $NF}'`;
+	
         SAM_INSTALL_REPO_ID=0;
     else
 
@@ -380,11 +391,6 @@ install_func(){
         #Exist repository in db?
         if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"` ]];then
             echo -e "\E[31mERROR: Not found name repository '$SAM_INSTALL_REPOS_NAME' in db.">&2;tput sgr0;
-            exit 1;
-        fi;
-        #Exist app in db?
-        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INSTALL_APP'"` ]];then
-            echo -e "\E[31mERROR: App '$SAM_INSTALL_APP' found in db.">&2;tput sgr0;
             exit 1;
         fi;
         #logging
@@ -419,7 +425,10 @@ install_func(){
         docker logout 2>&1 > /dev/null;
     fi;
 
-    #
+    # if exist label com.smilart.multiple_versions="supported"
+    check_app_in_db $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION
+    # 
+
     create_tag_app $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
     echo;
     echo -e "\E[32mInstalling app $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION.";tput sgr0;
@@ -475,16 +484,35 @@ SERVER=$SAM_URL_UPDATE" > $PATH_UPDATE_SMILARTOS;
 
 remove_func(){
     local SAM_REMOVE_NAME;
+    local COUNT_APPS_NAME;
     local SAM_REMOVE_VERSION;
     local SAM_REMOVE_DOCKER_ID;
 
-    SAM_REMOVE_NAME=$1;
-    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"` ]];then
-        echo -e "\E[31mERROR: App not found in db.">&2;tput sgr0;
-        exit 1;
+    SAM_REMOVE_NAME="`echo $1 | awk -F ':' '{print $1}'`"
+
+    COUNT_APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'" | wc -l`    
+    case "$COUNT_APPS_NAME" in
+        "0") echo -e "\E[31mERROR: App $SAM_REMOVE_NAME not found in db.">&2;tput sgr0;
+             exit 1
+            ;;
+
+        "1") if [[ -z "`echo $1 | grep ':'`" ]];then
+                 SAM_REMOVE_VERSION=`sqlite3 $SAM_DB_SQLITE "SELECT ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"`
+             else
+                 SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`"
+             fi;   
+            ;;
+
+        *) SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`"
+          ;;
+    esac
+   
+    SAM_REMOVE_DOCKER_ID="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME' AND ImageVersion='$SAM_REMOVE_VERSION'\"`"
+    if [[ -z "$SAM_REMOVE_DOCKER_ID" || "`echo \"$SAM_REMOVE_DOCKER_ID\" | wc -l`" != "1" ]];then
+        echo -e "\E[31mERROR: App $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION not found in db.">&2;tput sgr0;
+             exit 1;
     fi;
-    SAM_REMOVE_VERSION=`sqlite3 $SAM_DB_SQLITE "SELECT ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"`;
-    SAM_REMOVE_DOCKER_ID=`sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"`;
+
     echo;
     echo -e "\E[32mUninstalling app $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION.";tput sgr0;
     uninstall_app_func $SAM_REMOVE_DOCKER_ID;
