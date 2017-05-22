@@ -597,6 +597,7 @@ export_func(){
     echo > "$1"
     if [[ $? -ne 0 ]];then
          echo -e "\E[31mERROR: Can't create file $1.">&2;tput sgr0;
+         exit 1;
     fi;    
 
     if [[ "$GETOPT_ALL" != "true" ]];then
@@ -615,7 +616,18 @@ export_func(){
             docker save $PREFIX_IMAGE/`echo $EXPORT_APP | awk -F '|' '{print $1 ":" $2}'` | gzip > $TMPL_DIR/$EXPORT_FILE_NAME;
             if [[ $? -ne 0 ]];then
                 echo -e "\E[31mERROR: Can't save image.">&2;tput sgr0;
+                exit 1;
             fi;
+
+            local FPostfix=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | awk -F '.' ' {print $NF}  '`
+            local CKSUM=`cksum "$TMPL_DIR/$EXPORT_FILE_NAME" | awk ' {print $1$2} '`
+            local NewName=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | sed s#$FPostfix#.$CKSUM.$FPostfix#g`
+            mv $TMPL_DIR/$EXPORT_FILE_NAME $NewName
+            if [[ $? -ne 0 ]];then
+                echo -e "\E[31mERROR: Can't count checksum archive.">&2;tput sgr0;
+                exit 1;
+            fi;	    
+
         done;
 
         echo "Creating images list"
@@ -630,16 +642,19 @@ export_func(){
         (cd $TMPL_DIR && tar cf archive.tar *)
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Can't create archive $TMPL_DIR/archive.tar.">&2;tput sgr0;
+            exit 1;
         fi;
         mv $TMPL_DIR/archive.tar "$1"
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Can't create archive '$1'.">&2;tput sgr0;
+            exit 1;
         fi;   
 
         echo "Clearing tmp directories"
         rm -rf $TMPL_DIR
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Can't remove $TMPL_DIR.">&2;tput sgr0;
+            exit 1;
         fi;
     fi
     echo -e "\E[32mComplete. Saved to '$1'.";tput sgr0
