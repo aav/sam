@@ -69,7 +69,7 @@ install_app_func() {
 
 # create_tag_app <DockerId> <app>:<version>
 create_tag_app(){
-        SAM_APP_LABEL=`docker inspect $1 | grep -m 1 com.smilart.repo_base_name | awk -F '"'  '{print $4}'`
+        local SAM_APP_LABEL=`docker inspect $1 | grep -m 1 com.smilart.repo_base_name | awk -F '"'  '{print $4}'`
         if [[ -n $SAM_APP_LABEL ]];then
                 echo;
                 echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2' from app";tput sgr0
@@ -126,13 +126,38 @@ save_app_in_db(){
 check_app_in_db(){
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND ImageVersion='$3'"` ]];then
         echo -e "\E[31mERROR: Apps $2:$3 exist in db.">&2;tput sgr0;
-        exit 1;
+        return 1;
     fi;
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2'"` ]];then
         if [[ "supported" != "`docker inspect $1 | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'`" ]];then
             echo -e "\E[31mERROR: Apps with name \"$2\" exist in db.">&2;tput sgr0;
+            return 1;
+        fi;
+    fi;
+}
+
+# pull_image_from_repo <ImageName> <ImageVersion>
+pull_image_from_repo(){
+    local DOCKER_LOGIN_USER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUser from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/[\ \t]//g'`;
+    local PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
+    if [[ -n $DOCKER_LOGIN_USER ]];then
+        DOCKER_LOGIN_PASSWORD=`sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
+        DOCKER_LOGIN_EMAIL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposEmail from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
+        DOCKER_LOGIN_REPOS_URL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
+        if [ -n "$SAM_INSTALL_EMAIL" ];then
+            DOCKER_LOGIN_COMMAND_OPTIONS="--email=$SAM_INSTALL_EMAIL";
+        else
+            DOCKER_LOGIN_COMMAND_OPTIONS='--email=none';
+        fi;
+        docker login --username=$DOCKER_LOGIN_USER --password=`echo "$DOCKER_LOGIN_PASSWORD" | base64 -d` $DOCKER_LOGIN_COMMAND_OPTIONS $PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
+        if [[ $? -ne 0 ]]; then
+            echo -e "\E[31mERROR: Wrong login/password or url from repository.">&2;tput sgr0;
             exit 1;
         fi;
+    fi;
+    docker pull $PREFIX_IMAGE_DOCKER/$1:$2;
+    if [[ $? -ne 0 ]];then
+        return 1
     fi;
 }
 
@@ -215,6 +240,7 @@ USAGE="
      Software Management:
         install, in             Install applications.
         remove, rm              Remove applications.
+        purge                   Cleare images of the docker not registered in sam.
         list                    List installed applications.
         search, se              Search image version on private registry.
         info                    Print application info.
@@ -362,7 +388,7 @@ install_func(){
     local SAM_INSTALL_COMMAND_OPTIONS;
     local SAM_PREFIX_IMAGE_DOCKER;
 
-    local CHECK_APP_IN_FILE
+    local CHECK_APP_IN_FILE;
 
     if [ -f "$1" ];then
         # Find file "repositories"
@@ -447,6 +473,9 @@ install_func(){
 
     # if exist label com.smilart.multiple_versions="supported"
     check_app_in_db $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION
+    if [[ $? -ne 0 ]];then
+        exit 1;
+    fi;
     # 
 
     create_tag_app $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
@@ -542,8 +571,8 @@ remove_func(){
 
 list_func(){
 
-local LIST_APPS
-local LIST_APPS_MAX_LINE
+local LIST_APPS;
+local LIST_APPS_MAX_LINE;
 
 if [ -z "$GETOPT_RAW" ];then
         echo;
@@ -563,11 +592,11 @@ fi;
 
 info_func(){
 
-    local TEMPLATE_DIR
-    local SAM_INFO_APP
-    local SAM_INFO_DOCKER_ID
+    local TEMPLATE_DIR;
+    local SAM_INFO_APP;
+    local SAM_INFO_DOCKER_ID;
 
-    SAM_INFO_APP=$1
+    SAM_INFO_APP=$1;
     if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"` ]];then
         echo -e "\E[31mERROR: App not found in db.">&2;tput sgr0;
         exit 1;
@@ -587,14 +616,18 @@ info_func(){
 }
 
 export_func(){
-    local FILE_PATH="$1"
+    local FILE_PATH="$1";
     local EXPORT_LIST_APPS=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName,ImageVersion FROM $SAM_DB_TABLE_INSTALL_APPS"`;
-    local EXPORT_APP
-    local EXPORT_FILE_NAME
-    local PREFIX_IMAGE='smilart'
-    local OS_NAME=`cat /etc/os-release | grep "PRETTY_NAME=" | awk -F '"' '{print $2}'`
+    local EXPORT_APP;
+    local EXPORT_FILE_NAME;
+    local PREFIX_IMAGE='smilart';
+    local OS_NAME="`cat /etc/os-release | grep "PRETTY_NAME=" | awk -F '"' '{print $2}'`";
+    if [[ -z "$OS_NAME" ]];then
+        echo -e "\E[31mERROR: File /etc/os-release not contain variable PRETTY_NAME.">&2;tput sgr0;
+        exit 1;
+    fi;
     
-    echo > "$1"
+    echo > "$1";
     if [[ $? -ne 0 ]];then
          echo -e "\E[31mERROR: Can't create file $1.">&2;tput sgr0;
          exit 1;
@@ -627,10 +660,9 @@ export_func(){
                 echo -e "\E[31mERROR: Can't count checksum archive.">&2;tput sgr0;
                 exit 1;
             fi;	    
-
         done;
 
-        echo "Creating images list"
+        echo "Creating images list";
         echo "#$OS_NAME#" > $TMPL_DIR/imagelist;
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Can't create export file $TMPL_DIR/imagelist.">&2;tput sgr0;
@@ -638,26 +670,210 @@ export_func(){
         fi;
         echo "$EXPORT_LIST_APPS" >> $TMPL_DIR/imagelist;
 
-        echo "Creating $1"
+        echo "Creating $1";
         (cd $TMPL_DIR && tar cf archive.tar *)
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Can't create archive $TMPL_DIR/archive.tar.">&2;tput sgr0;
             exit 1;
         fi;
-        mv $TMPL_DIR/archive.tar "$1"
+        mv $TMPL_DIR/archive.tar "$1";
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Can't create archive '$1'.">&2;tput sgr0;
             exit 1;
         fi;   
 
-        echo "Clearing tmp directories"
-        rm -rf $TMPL_DIR
+        echo "Clearing tmp directories";
+        rm -rf $TMPL_DIR;
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Can't remove $TMPL_DIR.">&2;tput sgr0;
             exit 1;
         fi;
     fi
-    echo -e "\E[32mComplete. Saved to '$1'.";tput sgr0
+    echo -e "\E[32mComplete. Saved to '$1'.";tput sgr0;
+}
+
+import_func(){
+    if ! [[ -f "$1" ]];then
+        echo -e "\E[31mERROR: $1 is not file.">&2;tput sgr0;
+        exit 1;
+    fi;
+    
+    local TMPL_DIR=`mktemp -d`;
+    tar xf $1 -C $TMPL_DIR/ > /dev/null 2>&1;
+    if [[ $? -ne 0 ]];then
+        cp -f $1 $TMPL_DIR/imagelist;
+        local IMPORT_SOURCE="file";
+    else
+        local IMPORT_SOURCE="archive";
+    fi;
+    
+    local OS_NAME="`cat /etc/os-release | grep "PRETTY_NAME=" | awk -F '"' '{print $2}'`";
+    if [[ -z "$OS_NAME" ]];then
+        echo -e "\E[31mERROR: File /etc/os-release not contain variable PRETTY_NAME.">&2;tput sgr0;
+        exit 1;
+    fi;
+    local OS_EXPORT="`cat $TMPL_DIR/imagelist | head -1 | awk -F '#' '{print $2}'`";
+    if [[ -z "$OS_EXPORT" ]];then
+        echo -e "\E[31mERROR: Format file '$1' is not format export of sam.">&2;tput sgr0;
+        exit 1;
+    fi;
+    if [[ "$OS_NAME" != "$OS_EXPORT" ]];then
+        echo -e -n "\n\E[33mWARN: Current vesrion OS: ";tput sgr0;
+        echo "$OS_NAME";
+        echo -e -n "\n\E[33mVesrion OS from export file: ";tput sgr0;
+        echo "$OS_EXPORT";
+        read -r -p "This versions OS may not be compatible. Continue the import? [y/N] " response
+                    case $response in
+                        [yY][eE][sS]|[yY])
+                          echo
+                          ;;
+                        *)
+                          rm -rf $TMPL_DIR;
+                          exit 0
+                          ;;
+                    esac
+    fi;
+    
+    if [[ $IMPORT_SOURCE == archive ]];then
+        local IMPORT_FILE_NAME;
+        for IMPORT_FILE_NAME in `ls -1 $TMPL_DIR | grep -v imagelist`
+        do
+            echo -e "\E[32mDocker load image from $TMPL_DIR/$IMPORT_FILE_NAME.\n";tput sgr0
+            docker load -i $TMPL_DIR/$IMPORT_FILE_NAME
+            if [[ $? -ne 0 ]];then
+                 echo -e "\E[31mERROR: Can not loading $TMPL_DIR/$IMPORT_FILE_NAME. Import is aborted.">&2;tput sgr0;
+                 exit 1;
+            fi;
+        done
+    fi;    
+   
+    echo -e "\E[32mCheck for applications available for installation.\n";tput sgr0;
+    
+    local PREFIX_IMAGE='smilart';
+    local IMPORT_APP;
+    local IMPORT_APP_NAME;
+    local IMPORT_APP_VERSION;
+    local IMPORT_APP_ID;
+    
+    for IMPORT_APP in `cat $TMPL_DIR/imagelist | awk 'FNR>1' | awk -F '|' '{print $1 ":" $2}'`
+    do
+        IMPORT_APP_NAME="`echo $IMPORT_APP | awk -F ':' '{print $1}'`";
+        IMPORT_APP_VERSION="`echo $IMPORT_APP | awk -F ':' '{print $2}'`";
+        IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
+        if [[ -z $IMPORT_APP_ID ]];then
+             echo;
+             pull_image_from_repo $IMPORT_APP_NAME $IMPORT_APP_VERSION;
+             if [[ $? -ne 0 ]];then
+                  echo -e "\E[31mERROR: Can not pull '$IMPORT_APP_NAME:$IMPORT_APP_VERSION' from current repository of sam.">&2;tput sgr0;
+                  echo "Not exist in system app $IMPORT_APP_NAME:$IMPORT_APP_VERSION. Import is aborted.";
+                  exit 1;
+             fi; 
+             
+             PREFIX_IMAGE=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`
+             IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
+             create_tag_app $IMPORT_APP_ID $IMPORT_APP_NAME:$IMPORT_APP_VERSION;
+             if [[ -z $IMPORT_APP_ID ]];then
+                 echo -e "\E[31mERROR: Not found docker image '$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION'.">&2;tput sgr0;
+                 exit 1;
+             fi;
+             docker logout 2>&1 > /dev/null;         
+        fi;
+    done;
+
+    #<name>:<version>
+    local LIST_APPS_REMOVE="$TMPL_DIR/removelist";
+    local APPS_REMOVE;
+    #<name>:<version>
+    local LIST_APPS_SKIP="$TMPL_DIR/skiplist";
+    #<name>:<version>|<id>|<repo id>
+    local LIST_APPS_ADD="$TMPL_DIR/addlist";
+    
+    for IMPORT_APP in `cat $TMPL_DIR/imagelist | awk 'FNR>1' | awk -F '|' '{print $1 ":" $2}'`
+    do
+        IMPORT_APP_NAME="`echo $IMPORT_APP | awk -F ':' '{print $1}'`";
+        IMPORT_APP_VERSION="`echo $IMPORT_APP | awk -F ':' '{print $2}'`";
+        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$IMPORT_APP_NAME' AND ImageVersion='$IMPORT_APP_VERSION'"` ]];then
+            echo "$IMPORT_APP" >> $LIST_APPS_SKIP;
+            continue
+        fi;
+        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$IMPORT_APP_NAME'"` ]]; then
+            APPS_REMOVE=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName, ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$IMPORT_APP_NAME'" | awk -F '|' '{print $1 ":" $2}'`
+            echo "$APPS_REMOVE" >> $LIST_APPS_REMOVE;
+        fi;
+        
+        IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
+        IMPORT_APP_REPO_ID=`sqlite3 $SAM_DB_SQLITE "SELECT id from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
+        echo "$IMPORT_APP_NAME:$IMPORT_APP_VERSION|$IMPORT_APP_ID|$IMPORT_APP_REPO_ID" >> $LIST_APPS_ADD;
+    done;
+    
+    echo; 
+    if [[ -f $LIST_APPS_SKIP ]];then 
+        echo -e "List skiping apps:\E[33m";
+        cat $LIST_APPS_SKIP;
+        tput sgr0;
+        echo;
+    fi;
+    if [[ -f $LIST_APPS_REMOVE ]];then
+        echo -e "List removing apps:\E[31m";
+        cat $LIST_APPS_REMOVE;
+        tput sgr0;
+        echo;
+    fi;
+    if [[ -f $LIST_APPS_ADD ]];then
+        echo -e "List adding apps:\E[32m";
+        cat $LIST_APPS_ADD | awk -F '|' '{print $1}';
+        tput sgr0;
+        echo;
+    fi;
+    read -r -p "Continue the import? [y/N] " response
+         case $response in
+              [yY][eE][sS]|[yY])
+                  echo
+                  ;;
+              *)
+                  rm -rf $TMPL_DIR;
+                  exit 0
+              ;;
+         esac
+    
+    #REMOVE
+    if [[ -f $LIST_APPS_REMOVE ]];then
+        echo -e "\E[32mRemoving apps from the system.\n";tput sgr0;
+        for IMPORT_APP_REMOVE in `cat "$LIST_APPS_REMOVE"`    
+        do
+             remove_func "$IMPORT_APP_REMOVE";
+        done;
+    fi;
+
+    #INSTALL
+    if [[ -f $LIST_APPS_ADD ]];then
+        echo -e "\E[32m\nInstalling apps from cache docker.\n";tput sgr0;
+        for IMPORT_APP_ADD in `cat "$LIST_APPS_ADD"`    
+        do
+            IMPORT_APP_NAME="`echo $IMPORT_APP_ADD | awk -F '|' '{print $1}' | awk -F ':' '{print $1}'`";
+            IMPORT_APP_VERSION="`echo $IMPORT_APP_ADD | awk -F '|' '{print $1}' | awk -F ':' '{print $2}'`";
+            IMPORT_APP_ID="`echo $IMPORT_APP_ADD | awk -F '|' '{print $2}'`";
+            IMPORT_APP_REPO_ID="`echo $IMPORT_APP_ADD | awk -F '|' '{print $3}'`";
+
+            install_app_func $IMPORT_APP_ID;
+            save_app_in_db $IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID;
+            if [[ $? -ne 0 ]]; then
+                echo -e "\E[31mERROR: Not save in db. '$IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID'">&2;tput sgr0;
+                exit 1;
+            fi;
+            echo;
+        done;
+    fi;
+    
+    echo "Clearing tmp directories";
+    rm -rf $TMPL_DIR;
+    if [[ $? -ne 0 ]];then
+        echo -e "\E[31mERROR: Can't remove $TMPL_DIR.">&2;tput sgr0;
+        exit 1;
+    fi;
+    
+    echo -e "\E[32m\nComplete.";tput sgr0;
+
 }
 
 addrepo_func(){
