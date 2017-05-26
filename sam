@@ -117,19 +117,40 @@ connect_func $@;' > $BIN_DIR/connect;
 
 # save_app_in_db <DockerId> <ImageName> <ImageVersion> <ImageRepos NUMBER>
 save_app_in_db(){
+    local LABEL_MULTIVERSION
+    if [[ `docker inspect $1 | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'` == "supported" ]];then
+            LABEL_MULTIVERSION='*';
+    else
+            LABEL_MULTIVERSION='';
+    fi;
+
     echo  "Save app to db.";
-    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos) values ('$1','$2','$3','$4');";
+    
+    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos,MultiVersion) values ('$1','$2','$3','$4', '$LABEL_MULTIVERSION');";
 }
 
 # check_app_in_db <DockerId> <ImageName> <ImageVersion>
 #if app exist or not found label com.smilart.multiple_versions="supported" then error
 check_app_in_db(){
+    # exist fulname
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND ImageVersion='$3'"` ]];then
         echo -e "\E[31mERROR: Apps $2:$3 exist in db.">&2;tput sgr0;
         return 1;
     fi;
-    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2'"` ]];then
-        if [[ "supported" != "`docker inspect $1 | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'`" ]];then
+    # exist with docker id
+    if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$1'"` ]];then
+        echo -e "\E[31mERROR: Apps with docker id '$1' exist in db.">&2;tput sgr0;
+        return 1;
+    fi;
+
+    # if app have label multiversion
+    if [[ `docker inspect $1 | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'` == "supported" ]];then
+        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND MultiVersion=''"` ]];then
+            echo -e "\E[31mERROR: Apps with name \"$2\" exist in db.">&2;tput sgr0;
+            return 1;
+        fi; 
+    else
+        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2'"` ]];then
             echo -e "\E[31mERROR: Apps with name \"$2\" exist in db.">&2;tput sgr0;
             return 1;
         fi;
@@ -208,7 +229,7 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
         echo;
         echo "Creating table $SAM_DB_TABLE_INSTALL_APPS.";
         echo;
-        sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT,ImageRepos INTEGER);";
+        sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT,ImageRepos INTEGER,MultiVersion TEXT);";
 fi;
 
 SAM_DB_TABLE_REPOS="Repos";
@@ -223,6 +244,45 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
         sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','official','$SAM_DB_TABLE_REPOS_URL','','','');";
 fi;
 unset SAM_DB_TABLE_REPOS_URL;
+
+# Converting db to db with multiversion
+convert_with_multiversion(){
+    local APPS_ID;
+    local LABEL_MULTIVERSION;
+
+    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS"` ]];then
+        return 0;
+    fi;    
+
+    for APPS_ID in `sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS"`
+    do
+        if [[ `docker inspect $APPS_ID | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'` == "supported" ]];then
+            LABEL_MULTIVERSION='*';
+        else
+            LABEL_MULTIVERSION='';
+        fi;
+        sqlite3 $SAM_DB_SQLITE "UPDATE $SAM_DB_TABLE_INSTALL_APPS SET MultiVersion='$LABEL_MULTIVERSION' WHERE DockerId='$APPS_ID'";
+        if [[ $? -ne 0 ]];then
+            echo -e "\E[31mERROR: Can't add label to column MultiVersion in db.">&2;tput sgr0;
+        fi;
+    done;
+}
+
+sqlite3 $SAM_DB_SQLITE "SELECT MultiVersion FROM $SAM_DB_TABLE_INSTALL_APPS" > /dev/null 2>&1;
+if [[ $? -ne 0 ]];then
+     echo -e "\E[33mWARN: Db of sam doesn't contain information about multiversion support.";tput sgr0; 
+     echo "Creating column MultiVersion to $SAM_DB_TABLE_INSTALL_APPS.";
+     sqlite3 $SAM_DB_SQLITE "ALTER TABLE $SAM_DB_TABLE_INSTALL_APPS ADD COLUMN MultiVersion TEXT";
+     if [[ $? -ne 0 ]];then
+         echo -e "\E[31mERROR: Can't create column MultiVersion in db.">&2;tput sgr0;
+         exit 1;
+     fi;
+
+     #For sqlite3 3.13 (else not found new column)
+     sqlite3 $SAM_DB_SQLITE "VACUUM";
+
+     convert_with_multiversion;
+fi;
 
 ## Help section
 USAGE="
@@ -553,6 +613,10 @@ remove_func(){
             ;;
 
         *) SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`"
+           if [[ -z $SAM_REMOVE_VERSION ]];then
+               echo -e "\E[31mERROR: App $SAM_REMOVE_NAME has several versions.">&2;tput sgr0;
+               exit 1
+           fi;
           ;;
     esac
    
