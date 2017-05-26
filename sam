@@ -420,6 +420,7 @@ List all install smilart applications.
 
   Command options:
     --raw                       List all install smilart applications in RAW format.
+    --labels                    List all applications with labels.
 
 ";
 
@@ -707,7 +708,11 @@ if [ -z "$GETOPT_RAW" ];then
         echo "      List apps:";
         echo;
         # Print repository
-        LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository FROM $SAM_DB_TABLE_INSTALL_APPS"`;
+        if [[ -z "$GETOPT_LABELS" ]];then
+            LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository FROM $SAM_DB_TABLE_INSTALL_APPS"`;
+        else
+            LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository,Family,MultiVersion as M FROM $SAM_DB_TABLE_INSTALL_APPS"`;
+        fi;
         if [[ -n $LIST_APPS ]];then
             LIST_APPS_MAX_LINE=`echo "$LIST_APPS" | column -t -s '|' -o ' | ' | wc -L`;
             echo "$LIST_APPS" | column -t -s '|' -o ' | ' | sed -e "1 a `for i in \`seq 1 $LIST_APPS_MAX_LINE\`; do echo -n '-';  done`";
@@ -1237,7 +1242,7 @@ help_func(){
 }
 
 ###Case section
-SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,email:,all --name "sam" -- "$@"`
+SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,email:,all,labels --name "sam" -- "$@"`
 eval set -- "$SAM_ARGUMENT";
 unset SAM_ARGUMENT;
 unset GETOPT_RAW;
@@ -1248,6 +1253,7 @@ unset GETOPT_USERNAME;
 unset GETOPT_PASSWORD;
 unset GETOPT_EMAIL;
 unset GETOPT_ALL;
+unset GETOPT_LABELS;
 
 while true ; do
     case "$1" in
@@ -1291,6 +1297,10 @@ while true ; do
         --all)
             GETOPT_ALL='true';
             shift 
+            ;;
+        --labels)
+            GETOPT_LABELS='true';
+            shift
             ;;
         --)
             shift;
