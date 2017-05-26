@@ -117,21 +117,27 @@ connect_func $@;' > $BIN_DIR/connect;
 
 # save_app_in_db <DockerId> <ImageName> <ImageVersion> <ImageRepos NUMBER>
 save_app_in_db(){
-    local LABEL_MULTIVERSION
+    local LABEL_MULTIVERSION;
     if [[ `docker inspect $1 | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'` == "supported" ]];then
             LABEL_MULTIVERSION='*';
     else
             LABEL_MULTIVERSION='';
     fi;
-
+    
+    local LABEL_FAMILY=`docker inspect $1 | grep -m 1 com.smilart.family | awk -F '"'  '{print $4}'`;
+    if [[ -z "$LABEL_FAMILY" ]];then
+        LABEL_FAMILY="$2"; 
+    fi;
     echo  "Save app to db.";
     
-    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos,MultiVersion) values ('$1','$2','$3','$4', '$LABEL_MULTIVERSION');";
+    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos,MultiVersion,Family) values ('$1','$2','$3','$4','$LABEL_MULTIVERSION','$LABEL_FAMILY');";
 }
 
 # check_app_in_db <DockerId> <ImageName> <ImageVersion>
 #if app exist or not found label com.smilart.multiple_versions="supported" then error
 check_app_in_db(){
+    # This function return exit code 1 if executed conditions
+
     # exist fulname
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND ImageVersion='$3'"` ]];then
         echo -e "\E[31mERROR: Apps $2:$3 exist in db.">&2;tput sgr0;
@@ -144,15 +150,33 @@ check_app_in_db(){
     fi;
 
     # if app have label multiversion
-    if [[ `docker inspect $1 | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'` == "supported" ]];then
+    local LABEL_MULTIVERSION=`docker inspect $1 | grep -m 1 com.smilart.multiple_versions | awk -F '"'  '{print $4}'`;
+    local LABEL_FAMILY=`docker inspect $1 | grep -m 1 com.smilart.family | awk -F '"'  '{print $4}'`;
+    if [[ -z "$LABEL_FAMILY" ]];then
+        LABEL_FAMILY="$2";
+    fi;
+    if [[ "$LABEL_MULTIVERSION" == "supported" ]];then
+        # and if name exist in db among without multiversion
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND MultiVersion=''"` ]];then
             echo -e "\E[31mERROR: Apps with name \"$2\" exist in db.">&2;tput sgr0;
             return 1;
-        fi; 
+        fi;
+        # and if family exist in db among without multiversion
+        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where Family='$LABEL_FAMILY' AND MultiVersion=''"` ]];then
+             echo -e "\E[31mERROR: Apps with family '$LABEL_FAMILY' exist in db.">&2;tput sgr0;
+             return 1;
+        fi;
     else
+    # if app doesn't have label multiversion
+        # and if name exist in db
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2'"` ]];then
             echo -e "\E[31mERROR: Apps with name \"$2\" exist in db.">&2;tput sgr0;
             return 1;
+        fi;
+        # and if family exist in db
+        if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where Family='$LABEL_FAMILY'"` ]];then
+             echo -e "\E[31mERROR: Apps with family '$LABEL_FAMILY' exist in db.">&2;tput sgr0;
+             return 1;
         fi;
     fi;
 }
@@ -229,7 +253,7 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
         echo;
         echo "Creating table $SAM_DB_TABLE_INSTALL_APPS.";
         echo;
-        sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT,ImageRepos INTEGER,MultiVersion TEXT);";
+        sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT,ImageRepos INTEGER,MultiVersion TEXT,Family TEXT);";
 fi;
 
 SAM_DB_TABLE_REPOS="Repos";
@@ -282,6 +306,46 @@ if [[ $? -ne 0 ]];then
      sqlite3 $SAM_DB_SQLITE "VACUUM";
 
      convert_with_multiversion;
+fi;
+
+# Converting db to db with family
+convert_with_family(){
+    local APPS_ID;
+    local APPS_NAME;
+    local LABEL_FAMILY;
+
+    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS"` ]];then
+        return 0;
+    fi;
+    
+    for APPS_ID in `sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS"`
+    do
+        APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$APPS_ID'"`;
+        LABEL_FAMILY=`docker inspect $APPS_ID | grep -m 1 com.smilart.family | awk -F '"'  '{print $4}'`;
+        if [[ -z "$LABEL_FAMILY" ]];then
+            LABEL_FAMILY=$APPS_NAME;
+        fi;
+        sqlite3 $SAM_DB_SQLITE "UPDATE $SAM_DB_TABLE_INSTALL_APPS SET Family='$LABEL_FAMILY' WHERE DockerId='$APPS_ID'";
+        if [[ $? -ne 0 ]];then
+            echo -e "\E[31mERROR: Can't add label to column MultiVersion in db.">&2;tput sgr0;
+        fi;
+    done;
+}
+
+sqlite3 $SAM_DB_SQLITE "SELECT Family FROM $SAM_DB_TABLE_INSTALL_APPS" > /dev/null 2>&1;
+if [[ $? -ne 0 ]];then
+     echo -e "\E[33mWARN: Db of sam doesn't contain information about family support.";tput sgr0;
+     echo "Creating column Family to $SAM_DB_TABLE_INSTALL_APPS.";
+     sqlite3 $SAM_DB_SQLITE "ALTER TABLE $SAM_DB_TABLE_INSTALL_APPS ADD COLUMN Family TEXT";
+     if [[ $? -ne 0 ]];then
+         echo -e "\E[31mERROR: Can't create column Family in db.">&2;tput sgr0;
+         exit 1;
+     fi;
+
+     #For sqlite3 3.13 (else not found new column)
+     sqlite3 $SAM_DB_SQLITE "VACUUM";
+
+     convert_with_family;
 fi;
 
 ## Help section
