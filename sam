@@ -72,7 +72,7 @@ create_tag_app(){
         local SAM_APP_LABEL=`docker inspect $1 | grep -m 1 com.smilart.repo_base_name | awk -F '"'  '{print $4}'`
         if [[ -n $SAM_APP_LABEL ]];then
                 echo;
-                echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2' from app";tput sgr0
+                echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2' from app";tput sgr0;
                 docker tag $1 $SAM_APP_LABEL/$2;
                 if [[ $? -ne 0 ]]; then
                     echo -e "\E[31mERROR: Not created app tag.">&2;tput sgr0;
@@ -622,7 +622,7 @@ upgrade_func(){
     local I;
 
     if [ -e $1 ];then
-        SAM_URL_UPDATE="http://localhost:8002/"
+        SAM_URL_UPDATE="http://localhost:8002/";
     else
         SAM_URL_UPDATE="$1"; 
     fi;
@@ -644,7 +644,6 @@ upgrade_func(){
         echo -e "\E[31mERROR: Stop upgrading. Url $SAM_URL_UPDATE is bad.">&2;tput sgr0;
         exit 1;
     fi;
-    unset I;
 
     #Configure update-engine
     echo "GROUP=stable
@@ -662,22 +661,22 @@ remove_func(){
     local SAM_REMOVE_VERSION;
     local SAM_REMOVE_DOCKER_ID;
 
-    SAM_REMOVE_NAME="`echo $1 | awk -F ':' '{print $1}'`"
+    SAM_REMOVE_NAME="`echo $1 | awk -F ':' '{print $1}'`";
 
-    COUNT_APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'" | wc -l`    
+    COUNT_APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'" | wc -l`;
     case "$COUNT_APPS_NAME" in
         "0") echo -e "\E[31mERROR: App $SAM_REMOVE_NAME not found in db.">&2;tput sgr0;
              exit 1
             ;;
 
         "1") if [[ -z "`echo $1 | grep ':'`" ]];then
-                 SAM_REMOVE_VERSION=`sqlite3 $SAM_DB_SQLITE "SELECT ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"`
+                 SAM_REMOVE_VERSION=`sqlite3 $SAM_DB_SQLITE "SELECT ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"`;
              else
-                 SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`"
+                 SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`";
              fi;   
             ;;
 
-        *) SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`"
+        *) SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`";
            if [[ -z $SAM_REMOVE_VERSION ]];then
                echo -e "\E[31mERROR: App $SAM_REMOVE_NAME has several versions.">&2;tput sgr0;
                exit 1
@@ -685,7 +684,7 @@ remove_func(){
           ;;
     esac
    
-    SAM_REMOVE_DOCKER_ID="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME' AND ImageVersion='$SAM_REMOVE_VERSION'\"`"
+    SAM_REMOVE_DOCKER_ID="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME' AND ImageVersion='$SAM_REMOVE_VERSION'\"`";
     if [[ -z "$SAM_REMOVE_DOCKER_ID" || "`echo \"$SAM_REMOVE_DOCKER_ID\" | wc -l`" != "1" ]];then
         echo -e "\E[31mERROR: App $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION not found in db.">&2;tput sgr0;
              exit 1;
@@ -777,18 +776,18 @@ export_func(){
         echo "Saving apps to gzip archives:"
         for EXPORT_APP in `echo "$EXPORT_LIST_APPS"`
         do
-            EXPORT_FILE_NAME="`echo $EXPORT_APP | awk -F '|' '{print $1 "-" $2 ".gz"}'`"
-            echo "   -> $TMPL_DIR/$EXPORT_FILE_NAME"
+            EXPORT_FILE_NAME="`echo $EXPORT_APP | awk -F '|' '{print $1 "-" $2 ".gz"}'`";
+            echo "   -> $TMPL_DIR/$EXPORT_FILE_NAME";
             docker save $PREFIX_IMAGE/`echo $EXPORT_APP | awk -F '|' '{print $1 ":" $2}'` | gzip > $TMPL_DIR/$EXPORT_FILE_NAME;
             if [[ $? -ne 0 ]];then
                 echo -e "\E[31mERROR: Can't save image.">&2;tput sgr0;
                 exit 1;
             fi;
 
-            local FPostfix=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | awk -F '.' ' {print $NF}  '`
-            local CKSUM=`cksum "$TMPL_DIR/$EXPORT_FILE_NAME" | awk ' {print $1$2} '`
-            local NewName=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | sed s#$FPostfix#.$CKSUM.$FPostfix#g`
-            mv $TMPL_DIR/$EXPORT_FILE_NAME $NewName
+            local FPostfix=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | awk -F '.' ' {print $NF}  '`;
+            local CKSUM=`cksum "$TMPL_DIR/$EXPORT_FILE_NAME" | awk ' {print $1$2} '`;
+            local NewName=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | sed s#$FPostfix#.$CKSUM.$FPostfix#g`;
+            mv $TMPL_DIR/$EXPORT_FILE_NAME $NewName;
             if [[ $? -ne 0 ]];then
                 echo -e "\E[31mERROR: Can't count checksum archive.">&2;tput sgr0;
                 exit 1;
@@ -871,8 +870,8 @@ import_func(){
         local IMPORT_FILE_NAME;
         for IMPORT_FILE_NAME in `ls -1 $TMPL_DIR | grep -v imagelist`
         do
-            echo -e "\E[32mDocker load image from $TMPL_DIR/$IMPORT_FILE_NAME.\n";tput sgr0
-            docker load -i $TMPL_DIR/$IMPORT_FILE_NAME
+            echo -e "\E[32mDocker load image from $TMPL_DIR/$IMPORT_FILE_NAME.\n";tput sgr0;
+            docker load -i $TMPL_DIR/$IMPORT_FILE_NAME;
             if [[ $? -ne 0 ]];then
                  echo -e "\E[31mERROR: Can not loading $TMPL_DIR/$IMPORT_FILE_NAME. Import is aborted.">&2;tput sgr0;
                  exit 1;
@@ -902,7 +901,7 @@ import_func(){
                   exit 1;
              fi;
 
-             PREFIX_IMAGE=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`
+             PREFIX_IMAGE=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
              IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
              create_tag_app $IMPORT_APP_ID $IMPORT_APP_NAME:$IMPORT_APP_VERSION;
              if [[ -z $IMPORT_APP_ID ]];then
@@ -1021,7 +1020,7 @@ addrepo_func(){
          echo -e "\E[31mERROR: Repository name '$GETOPT_NAME' exist in db.">&2;tput sgr0;
          exit 1;
     fi;
-    GETOPT_PASSWORD=`echo "$GETOPT_PASSWORD" | base64`
+    GETOPT_PASSWORD=`echo "$GETOPT_PASSWORD" | base64`;
 
     #save in db
     sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('$GETOPT_DEFAULT','$GETOPT_NAME','$GETOPT_SERVER','$GETOPT_USERNAME','$GETOPT_PASSWORD','$GETOPT_EMAIL');";
@@ -1083,8 +1082,8 @@ modifyrepo_func(){
 
 listrepos_func(){
 
-    local LIST_REPOSITORIES_MAX_LINE
-    local LIST_REPOSITORIES
+    local LIST_REPOSITORIES_MAX_LINE;
+    local LIST_REPOSITORIES;
 
     if [ -z "$GETOPT_RAW" ];then
         echo;
@@ -1101,14 +1100,14 @@ listrepos_func(){
 
 search_func(){
 
-    local SAM_INSTALL_REPOS_NAME
-    local SAM_INSTALL_PASSWORD
-    local SAM_INSTALL_REPOS_URL
-    local SAM_INSTALL_USER
-    local CURRENT_VERSION
-    local CURRENT_IMAGE
-    local LIST_IMAGES
-    local FLUG_SHOW_VERSIONS
+    local SAM_INSTALL_REPOS_NAME;
+    local SAM_INSTALL_PASSWORD;
+    local SAM_INSTALL_REPOS_URL;
+    local SAM_INSTALL_USER;
+    local CURRENT_VERSION;
+    local CURRENT_IMAGE;
+    local LIST_IMAGES;
+    local FLUG_SHOW_VERSIONS;
 
     #Exist repository in db?
     SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`
