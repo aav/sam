@@ -123,7 +123,7 @@ save_app_in_db(){
     else
             LABEL_MULTIVERSION='';
     fi;
-    
+
     local LABEL_FAMILY=`docker inspect $1 | grep -m 1 com.smilart.family | awk -F '"'  '{print $4}'`;
     if [[ -z "$LABEL_FAMILY" ]];then
         LABEL_FAMILY="$2"; 
@@ -276,7 +276,7 @@ convert_with_multiversion(){
 
     if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS"` ]];then
         return 0;
-    fi;    
+    fi;
 
     for APPS_ID in `sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS"`
     do
@@ -317,7 +317,7 @@ convert_with_family(){
     if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS"` ]];then
         return 0;
     fi;
-    
+
     for APPS_ID in `sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS"`
     do
         APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$APPS_ID'"`;
@@ -535,7 +535,7 @@ install_func(){
             echo "May be incorrectly created archive.";
             exit 1;
         fi;
-	
+
         echo "Loading image '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'.";
         docker load -i $1;
         if [[ $? -ne 0 ]]; then
@@ -544,7 +544,7 @@ install_func(){
         fi;
 
         SAM_INSTALL_DOCKER_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION:" | awk -F ':' '{print $NF}'`;
-	
+
         SAM_INSTALL_REPO_ID=0;
     else
 
@@ -759,17 +759,17 @@ export_func(){
         echo -e "\E[31mERROR: File /etc/os-release not contain variable PRETTY_NAME.">&2;tput sgr0;
         exit 1;
     fi;
-    
+
     echo > "$1";
     if [[ $? -ne 0 ]];then
          echo -e "\E[31mERROR: Can't create file $1.">&2;tput sgr0;
          exit 1;
-    fi;    
+    fi;
 
     if [[ "$GETOPT_ALL" != "true" ]];then
-    	echo "#$OS_NAME#" > $1;
+        echo "#$OS_NAME#" > $1;
         echo "$EXPORT_LIST_APPS" >> $1;
-        
+
     else
         local TMPL_DIR=`mktemp -d`;
         echo "Creating tmp directory $TMPL_DIR";
@@ -792,7 +792,7 @@ export_func(){
             if [[ $? -ne 0 ]];then
                 echo -e "\E[31mERROR: Can't count checksum archive.">&2;tput sgr0;
                 exit 1;
-            fi;	    
+            fi;
         done;
 
         echo "Creating images list";
@@ -813,7 +813,7 @@ export_func(){
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Can't create archive '$1'.">&2;tput sgr0;
             exit 1;
-        fi;   
+        fi;
 
         echo "Clearing tmp directories";
         rm -rf $TMPL_DIR;
@@ -830,7 +830,7 @@ import_func(){
         echo -e "\E[31mERROR: $1 is not file.">&2;tput sgr0;
         exit 1;
     fi;
-    
+
     local TMPL_DIR=`mktemp -d`;
     tar xf $1 -C $TMPL_DIR/ > /dev/null 2>&1;
     if [[ $? -ne 0 ]];then
@@ -839,7 +839,7 @@ import_func(){
     else
         local IMPORT_SOURCE="archive";
     fi;
-    
+
     local OS_NAME="`cat /etc/os-release | grep "PRETTY_NAME=" | awk -F '"' '{print $2}'`";
     if [[ -z "$OS_NAME" ]];then
         echo -e "\E[31mERROR: File /etc/os-release not contain variable PRETTY_NAME.">&2;tput sgr0;
@@ -866,7 +866,7 @@ import_func(){
                           ;;
                     esac
     fi;
-    
+
     if [[ $IMPORT_SOURCE == archive ]];then
         local IMPORT_FILE_NAME;
         for IMPORT_FILE_NAME in `ls -1 $TMPL_DIR | grep -v imagelist`
@@ -878,16 +878,16 @@ import_func(){
                  exit 1;
             fi;
         done
-    fi;    
-   
+    fi;
+
     echo -e "\E[32mCheck for applications available for installation.\n";tput sgr0;
-    
+
     local PREFIX_IMAGE='smilart';
     local IMPORT_APP;
     local IMPORT_APP_NAME;
     local IMPORT_APP_VERSION;
     local IMPORT_APP_ID;
-    
+
     for IMPORT_APP in `cat $TMPL_DIR/imagelist | awk 'FNR>1' | awk -F '|' '{print $1 ":" $2}'`
     do
         IMPORT_APP_NAME="`echo $IMPORT_APP | awk -F ':' '{print $1}'`";
@@ -900,8 +900,8 @@ import_func(){
                   echo -e "\E[31mERROR: Can not pull '$IMPORT_APP_NAME:$IMPORT_APP_VERSION' from current repository of sam.">&2;tput sgr0;
                   echo "Not exist in system app $IMPORT_APP_NAME:$IMPORT_APP_VERSION. Import is aborted.";
                   exit 1;
-             fi; 
-             
+             fi;
+
              PREFIX_IMAGE=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`
              IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
              create_tag_app $IMPORT_APP_ID $IMPORT_APP_NAME:$IMPORT_APP_VERSION;
@@ -909,7 +909,7 @@ import_func(){
                  echo -e "\E[31mERROR: Not found docker image '$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION'.">&2;tput sgr0;
                  exit 1;
              fi;
-             docker logout 2>&1 > /dev/null;         
+             docker logout 2>&1 > /dev/null;
         fi;
     done;
 
@@ -920,7 +920,7 @@ import_func(){
     local LIST_APPS_SKIP="$TMPL_DIR/skiplist";
     #<name>:<version>|<id>|<repo id>
     local LIST_APPS_ADD="$TMPL_DIR/addlist";
-    
+
     for IMPORT_APP in `cat $TMPL_DIR/imagelist | awk 'FNR>1' | awk -F '|' '{print $1 ":" $2}'`
     do
         IMPORT_APP_NAME="`echo $IMPORT_APP | awk -F ':' '{print $1}'`";
@@ -933,12 +933,12 @@ import_func(){
             APPS_REMOVE=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName, ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$IMPORT_APP_NAME'" | awk -F '|' '{print $1 ":" $2}'`
             echo "$APPS_REMOVE" >> $LIST_APPS_REMOVE;
         fi;
-        
+
         IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
         IMPORT_APP_REPO_ID=`sqlite3 $SAM_DB_SQLITE "SELECT id from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
         echo "$IMPORT_APP_NAME:$IMPORT_APP_VERSION|$IMPORT_APP_ID|$IMPORT_APP_REPO_ID" >> $LIST_APPS_ADD;
     done;
-    
+
     echo; 
     if [[ -f $LIST_APPS_SKIP ]];then 
         echo -e "List skiping apps:\E[33m";
@@ -997,14 +997,14 @@ import_func(){
             echo;
         done;
     fi;
-    
+
     echo "Clearing tmp directories";
     rm -rf $TMPL_DIR;
     if [[ $? -ne 0 ]];then
         echo -e "\E[31mERROR: Can't remove $TMPL_DIR.">&2;tput sgr0;
         exit 1;
     fi;
-    
+
     echo -e "\E[32m\nComplete.";tput sgr0;
 
 }
@@ -1350,8 +1350,8 @@ while true ; do
                     list_func;
                     exit 0
                     ;;
-		purge)
-		    shift;
+                purge)
+                    shift;
                     purge_func;
                     exit 0
                     ;;
