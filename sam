@@ -515,8 +515,9 @@ install_func(){
 
     local CHECK_APP_IN_FILE;
 
+    #Install file ot app from repos
     if [ -f "$1" ];then
-        # Find file "repositories"
+        # Find file "repositories" (check format app)
         CHECK_APP_IN_FILE="`tar -xOf $1 repositories 2>&1`";
         if [[ $? -ne 0 ]]; then
             echo -e "\E[31mERROR: File repositories not found in archive.">&2;tput sgr0;
@@ -526,6 +527,7 @@ install_func(){
             echo -e "\E[31mERROR: Incorrectly created archive. File repositories is bad.">&2;tput sgr0;
             exit 1;
         fi;
+
         SAM_PREFIX_IMAGE_DOCKER=`echo "$CHECK_APP_IN_FILE" | awk -F '"' ' {print $2} ' | sed "s/ /:/g" | awk -F '/' '{print $1}'`;
         SAM_INSTALL_APP=`echo "$CHECK_APP_IN_FILE" | awk -F '"' ' {print $2} ' | sed "s/ /:/g" | awk -F '/' '{print $NF}'`;
         SAM_INSTALL_VERSION=`echo "$CHECK_APP_IN_FILE" | awk -F '"' ' {print $4} ' | sed "s/ /:/g"`;
@@ -547,8 +549,7 @@ install_func(){
 
         SAM_INSTALL_REPO_ID=0;
     else
-
-        # if $1 in docker repo
+        # if $1 app from docker repo
         SAM_INSTALL_VERSION=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'`;
         if [[ -z $SAM_INSTALL_VERSION ]];then
             echo -e "\E[31mERROR: Version in string '$1' is not found.">&2;tput sgr0;
@@ -582,6 +583,7 @@ install_func(){
             fi;
         fi;
         SAM_INSTALL_REPO_ID=`sqlite3 $SAM_DB_SQLITE "SELECT Id FROM $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
+        # pull app
         docker pull $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
         if [[ $? -ne 0 ]]; then
             echo -e "\E[31mERROR: Not download smilart applications.">&2;tput sgr0;
@@ -596,7 +598,7 @@ install_func(){
         docker logout 2>&1 > /dev/null;
     fi;
 
-    # if exist label com.smilart.multiple_versions="supported"
+    # if exist label com.smilart.multiple_versions="supported" or com.smilart.family
     check_app_in_db $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION
     if [[ $? -ne 0 ]];then
         exit 1;
@@ -765,6 +767,7 @@ export_func(){
          exit 1;
     fi;
 
+    #Save to file or archive with apps
     if [[ "$GETOPT_ALL" != "true" ]];then
         echo "#$OS_NAME#" > $1;
         echo "$EXPORT_LIST_APPS" >> $1;
@@ -830,6 +833,7 @@ import_func(){
         exit 1;
     fi;
 
+    # Is it file or archive?
     local TMPL_DIR=`mktemp -d`;
     tar xf $1 -C $TMPL_DIR/ > /dev/null 2>&1;
     if [[ $? -ne 0 ]];then
@@ -839,6 +843,7 @@ import_func(){
         local IMPORT_SOURCE="archive";
     fi;
 
+    #Check OS
     local OS_NAME="`cat /etc/os-release | grep "PRETTY_NAME=" | awk -F '"' '{print $2}'`";
     if [[ -z "$OS_NAME" ]];then
         echo -e "\E[31mERROR: File /etc/os-release not contain variable PRETTY_NAME.">&2;tput sgr0;
@@ -866,6 +871,7 @@ import_func(){
                     esac
     fi;
 
+    #If achive - load apps
     if [[ $IMPORT_SOURCE == archive ]];then
         local IMPORT_FILE_NAME;
         for IMPORT_FILE_NAME in `ls -1 $TMPL_DIR | grep -v imagelist`
@@ -887,6 +893,7 @@ import_func(){
     local IMPORT_APP_VERSION;
     local IMPORT_APP_ID;
 
+    # load apps from repo
     for IMPORT_APP in `cat $TMPL_DIR/imagelist | awk 'FNR>1' | awk -F '|' '{print $1 ":" $2}'`
     do
         IMPORT_APP_NAME="`echo $IMPORT_APP | awk -F ':' '{print $1}'`";
@@ -912,6 +919,7 @@ import_func(){
         fi;
     done;
 
+    #Create lists with changes
     #<name>:<version>
     local LIST_APPS_REMOVE="$TMPL_DIR/removelist";
     local APPS_REMOVE;
@@ -938,6 +946,7 @@ import_func(){
         echo "$IMPORT_APP_NAME:$IMPORT_APP_VERSION|$IMPORT_APP_ID|$IMPORT_APP_REPO_ID" >> $LIST_APPS_ADD;
     done;
 
+    #Print changes lists
     echo; 
     if [[ -f $LIST_APPS_SKIP ]];then 
         echo -e "List skiping apps:\E[33m";
@@ -968,7 +977,7 @@ import_func(){
               ;;
          esac
     
-    #REMOVE
+    #REMOVE apps
     if [[ -f $LIST_APPS_REMOVE ]];then
         echo -e "\E[32mRemoving apps from the system.\n";tput sgr0;
         for IMPORT_APP_REMOVE in `cat "$LIST_APPS_REMOVE"`    
@@ -977,7 +986,7 @@ import_func(){
         done;
     fi;
 
-    #INSTALL
+    #INSTALL apps
     if [[ -f $LIST_APPS_ADD ]];then
         echo -e "\E[32m\nInstalling apps from cache docker.\n";tput sgr0;
         for IMPORT_APP_ADD in `cat "$LIST_APPS_ADD"`    
