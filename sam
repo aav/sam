@@ -715,8 +715,8 @@ if [ -z "$GETOPT_RAW" ];then
             LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository,Family,MultiVersion as M FROM $SAM_DB_TABLE_INSTALL_APPS"`;
         fi;
         if [[ -n $LIST_APPS ]];then
-            LIST_APPS_MAX_LINE=`echo "$LIST_APPS" | column -t -s '|' -o ' | ' | wc -L`;
-            echo "$LIST_APPS" | column -t -s '|' -o ' | ' | sed -e "1 a `for i in \`seq 1 $LIST_APPS_MAX_LINE\`; do echo -n '-';  done`";
+            LIST_APPS_MAX_LINE=`echo "$LIST_APPS" | sed 's/|/#|  /g' | column -t -s '#' | wc -L`;
+            echo "$LIST_APPS" | sed 's/|/#|  /g' | column -t -s '#' | sed -e "1 a `for i in \`seq 1 $LIST_APPS_MAX_LINE\`; do echo -n '-';  done`";
         echo;
         fi;
 else
@@ -1098,7 +1098,7 @@ listrepos_func(){
         echo;
         echo "      List repositories:";
         echo;
-        LIST_REPOSITORIES=`sqlite3 -header $SAM_DB_SQLITE "SELECT id as Num, ReposFlag as Def, ReposName as Name, ReposUrl as Url, ReposUser as User FROM $SAM_DB_TABLE_REPOS" |  column -t -s '|' -o ' | '`;
+        LIST_REPOSITORIES=`sqlite3 -header $SAM_DB_SQLITE "SELECT id as Num, ReposFlag as Def, ReposName as Name, ReposUrl as Url, ReposUser as User FROM $SAM_DB_TABLE_REPOS" |  sed 's/|/#|  /g' | column -t -s '#'`;
         LIST_REPOSITORIES_MAX_LINE=`echo "$LIST_REPOSITORIES" | wc -L`;
         echo "$LIST_REPOSITORIES" | sed -e "1 a `for i in \`seq 1 $LIST_REPOSITORIES_MAX_LINE\`; do echo -n '-';  done`"
         echo;
