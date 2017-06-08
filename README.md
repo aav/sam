@@ -28,3 +28,14 @@
         modifyrepo, mr          Modify specified repository.
         listrepos, lr           List all defined repositories.
 
+
+# Building .deb package #
+
+Command for building to ubuntu:
+     BUILD_NUMBER=0 ./deb-builder.sh 
+
+Result:
+     sam-<version>.deb
+
+Variable BUILD_NUMBER is needed for jenkins. Default: SNAPSHOT
+
