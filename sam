@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #set -vx
-SAM_VERSION='1.12';
+SAM_VERSION='1.13';
 
 #Configuring
 BIN_DIR=${BIN_DIR:-/opt/bin}
@@ -486,9 +486,12 @@ Default, export apps list in a special format to a file.
 ";
 
 USAGE_IMPORT="
-import (im) <file>
+import (im) <file> [--restore]
 
 Default, import apps list or archive with apps.
+
+  Command options:
+    --restore                   Sam uninstall all apps and import it from list.
 
 ";
 
@@ -919,7 +922,7 @@ import_func(){
         fi;
     done;
 
-    #Create lists with changes
+    #Generate lists with changes
     #<name>:<version>
     local LIST_APPS_REMOVE="$TMPL_DIR/removelist";
     local APPS_REMOVE;
@@ -932,19 +935,31 @@ import_func(){
     do
         IMPORT_APP_NAME="`echo $IMPORT_APP | awk -F ':' '{print $1}'`";
         IMPORT_APP_VERSION="`echo $IMPORT_APP | awk -F ':' '{print $2}'`";
+        IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
+        IMPORT_APP_REPO_ID=`sqlite3 $SAM_DB_SQLITE "SELECT id from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
+
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$IMPORT_APP_NAME' AND ImageVersion='$IMPORT_APP_VERSION'"` ]];then
-            echo "$IMPORT_APP" >> $LIST_APPS_SKIP;
+            if [[ "$GETOPT_RESTORE" == "true" ]];then
+                echo "$IMPORT_APP_NAME:$IMPORT_APP_VERSION|$IMPORT_APP_ID|$IMPORT_APP_REPO_ID" >> $LIST_APPS_ADD;
+            else
+                echo "$IMPORT_APP" >> $LIST_APPS_SKIP;
+            fi;
             continue
         fi;
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$IMPORT_APP_NAME'"` ]]; then
-            APPS_REMOVE=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName, ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$IMPORT_APP_NAME'" | awk -F '|' '{print $1 ":" $2}'`
-            echo "$APPS_REMOVE" >> $LIST_APPS_REMOVE;
+                APPS_REMOVE=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName, ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$IMPORT_APP_NAME'" | awk -F '|' '{print $1 ":" $2}'`;
+                echo "$APPS_REMOVE" >> $LIST_APPS_REMOVE;
         fi;
-
-        IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
-        IMPORT_APP_REPO_ID=`sqlite3 $SAM_DB_SQLITE "SELECT id from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
         echo "$IMPORT_APP_NAME:$IMPORT_APP_VERSION|$IMPORT_APP_ID|$IMPORT_APP_REPO_ID" >> $LIST_APPS_ADD;
-    done;
+
+    done;	
+    #If exist flug --restore then remove all apps
+    if [[ "$GETOPT_RESTORE" == "true" ]];then
+        APPS_REMOVE=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName, ImageVersion from $SAM_DB_TABLE_INSTALL_APPS" | awk -F '|' '{print $1 ":" $2}'`
+        if [[ -n $APPS_REMOVE ]];then
+            echo "$APPS_REMOVE" > $LIST_APPS_REMOVE;
+        fi;
+    fi;
 
     #Print changes lists
     echo; 
@@ -1250,7 +1265,7 @@ help_func(){
 }
 
 ###Case section
-SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,email:,all,labels --name "sam" -- "$@"`
+SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,email:,all,labels,restore --name "sam" -- "$@"`
 eval set -- "$SAM_ARGUMENT";
 unset SAM_ARGUMENT;
 unset GETOPT_RAW;
@@ -1262,6 +1277,7 @@ unset GETOPT_PASSWORD;
 unset GETOPT_EMAIL;
 unset GETOPT_ALL;
 unset GETOPT_LABELS;
+unset GETOPT_RESTORE;
 
 while true ; do
     case "$1" in
@@ -1308,6 +1324,10 @@ while true ; do
             ;;
         --labels)
             GETOPT_LABELS='true';
+            shift
+            ;;
+        --restore)
+            GETOPT_RESTORE='true';
             shift
             ;;
         --)
