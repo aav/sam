@@ -20,7 +20,7 @@ copy_meta_func() {
                 echo -e "\E[31mERROR: Invalid image format. Directory '/meta' doesn't exist in the image.">&2;tput sgr0;
                 rm -rf $TEMPLATE_DIR;
                 if [ -n `sqlite3 $SAM_DB_SQLITE "select ImageName from $SAM_DB_TABLE_INSTALL_APPS where DockerId=$1"` ] ; then
-                    read -r -p "Remove the app from sam repository? [y/N] " response
+                    read -r -p "Remove the application from sam repository? [y/N] " response
                     case $response in
                         [yY][eE][sS]|[yY])
                           delete_app_to_db_func $1;
@@ -465,20 +465,20 @@ Modify properties of repositories specified.
 USAGE_EXPORT="
 export (ex) <file> [--all]
 
-Export apps list in a special format to a <file>.
+Export applications list in a special format to a <file>.
 
   Command options:
-    --all                       Save apps to gzip archive and add them to tar. Export to archive.
+    --all                       Save applications to gzip archive and add them to tar. Export to archive.
 
 ";
 
 USAGE_IMPORT="
 import (im) <file> [--restore]
 
-Import apps list or archive with apps.
+Import applications list or archive with applications.
 
   Command options:
-    --restore                   Uninstall all installed apps and import new apps from <file>.
+    --restore                   Uninstall all installed applications and import new applications from <file>.
 
 ";
 
@@ -592,7 +592,7 @@ install_func(){
 
     create_tag_app $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
     echo;
-    echo -e "\E[32mInstalling app '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'...";tput sgr0;
+    echo -e "\E[32mInstalling application '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'...";tput sgr0;
     install_app_func $SAM_INSTALL_DOCKER_ID;    
     save_app_in_db $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID;
     if [[ $? -ne 0 ]]; then
@@ -639,7 +639,7 @@ remove_func(){
     fi;
 
     echo;
-    echo -e "\E[32mRemoving app '$SAM_REMOVE_NAME:$SAM_REMOVE_VERSION'...";tput sgr0;
+    echo -e "\E[32mRemoving application '$SAM_REMOVE_NAME:$SAM_REMOVE_VERSION'...";tput sgr0;
     uninstall_app_func $SAM_REMOVE_DOCKER_ID;
     delete_app_to_db_func $SAM_REMOVE_DOCKER_ID;
     echo -e "\E[32mApplication '$SAM_REMOVE_NAME:$SAM_REMOVE_VERSION' was successfully removed.";tput sgr0;
@@ -652,7 +652,7 @@ local LIST_APPS_MAX_LINE;
 
 if [ -z "$GETOPT_RAW" ];then
         echo;
-        echo "      List apps:";
+        echo "      List applications:";
         echo;
         # Print repository
         if [[ -z "$GETOPT_LABELS" ]];then
@@ -722,7 +722,7 @@ export_func(){
         local TMPL_DIR=`mktemp -d`;
         echo "Creating tmp directory $TMPL_DIR"...;
 
-        echo "Saving apps to gzip archive:"
+        echo "Saving applications to gzip archive:"
         for EXPORT_APP in `echo "$EXPORT_LIST_APPS"`
         do
             EXPORT_FILE_NAME="`echo $EXPORT_APP | awk -F '|' '{print $1 "-" $2 ".gz"}'`";
@@ -949,7 +949,7 @@ import_func(){
 
     #INSTALL apps
     if [[ -f $LIST_APPS_ADD ]];then
-        echo -e "\E[32m\nInstalling apps from docker cache.\n";tput sgr0;
+        echo -e "\E[32m\nInstalling applications from docker cache.\n";tput sgr0;
         for IMPORT_APP_ADD in `cat "$LIST_APPS_ADD"`    
         do
             IMPORT_APP_NAME="`echo $IMPORT_APP_ADD | awk -F '|' '{print $1}' | awk -F ':' '{print $1}'`";
