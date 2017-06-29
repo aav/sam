@@ -180,17 +180,14 @@ check_app_in_db(){
 # pull_image_from_repo <ImageName> <ImageVersion>
 pull_image_from_repo(){
     local DOCKER_LOGIN_USER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUser from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/[\ \t]//g'`;
+    local DOCKER_LOGIN_PASSWORD='';
     local PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
+    local DOCKER_LOGIN_REPOS_URL='';
+
     if [[ -n $DOCKER_LOGIN_USER ]];then
         DOCKER_LOGIN_PASSWORD=`sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
-        DOCKER_LOGIN_EMAIL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposEmail from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
         DOCKER_LOGIN_REPOS_URL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'"`;
-        if [ -n "$SAM_INSTALL_EMAIL" ];then
-            DOCKER_LOGIN_COMMAND_OPTIONS="--email=$SAM_INSTALL_EMAIL";
-        else
-            DOCKER_LOGIN_COMMAND_OPTIONS='--email=none';
-        fi;
-        docker login --username=$DOCKER_LOGIN_USER --password=`echo "$DOCKER_LOGIN_PASSWORD" | base64 -d` $DOCKER_LOGIN_COMMAND_OPTIONS $PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
+        docker login --username=$DOCKER_LOGIN_USER --password=`echo "$DOCKER_LOGIN_PASSWORD" | base64 -d` $PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
         if [[ $? -ne 0 ]]; then
             echo -e "\E[31mERROR: Wrong login/password or repository url.">&2;tput sgr0;
             exit 1;
@@ -258,10 +255,10 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
         echo;
         echo "Creating table $SAM_DB_TABLE_REPOS...";
         echo;
-        sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);";
+        sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT);";
         echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL"...;
         echo;
-        sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','official','$SAM_DB_TABLE_REPOS_URL','','','');";
+        sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass) values ('*','official','$SAM_DB_TABLE_REPOS_URL','','');";
 fi;
 
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'"` ]];then
@@ -424,7 +421,7 @@ Print application info.
 ";
 
 USAGE_ADDREPO="
-addrepo (ar) --name <name> --server <hostname> [--default] [--username <username>] [--password <password>] [--email <email>]
+addrepo (ar) --name <name> --server <hostname> [--default] [--username <username>] [--password <password>]
 
 Add a repository to the system.
 
@@ -434,7 +431,6 @@ Add a repository to the system.
     --default                   Use this repository as default repository. It means that you can ommit repository name in sam install command.
     --username                  Username to log on the remote repository.
     --password                  Password to log on the remote repository.
-    --email                     Email to log on the remote repository.
 
 ";
 
@@ -453,7 +449,7 @@ Run removing old images from the system.
 ";
 
 USAGE_MODIFYREPO="
-modifyrepo (mr) <id> [--default] [--name <name>] [--server <hostname>] [--username <username>] [--password <password>] [--email <email>]
+modifyrepo (mr) <id> [--default] [--name <name>] [--server <hostname>] [--username <username>] [--password <password>]
 
 Modify properties of repositories specified.
 
@@ -463,7 +459,6 @@ Modify properties of repositories specified.
     --server                    New IP-address or new hostname of the repository.
     --username                  New username to log on the remote repository.
     --password                  New password to log on the remote repository.
-    --email                     New email to log on the remote repository.
 
 ";
 
@@ -506,7 +501,6 @@ install_func(){
     local SAM_INSTALL_REPOS_NAME;
     local SAM_INSTALL_USER;
     local SAM_INSTALL_PASSWORD;
-    local SAM_INSTALL_EMAIL;
     local SAM_INSTALL_COMMAND_OPTIONS;
     local SAM_PREFIX_IMAGE_DOCKER;
 
@@ -567,14 +561,8 @@ install_func(){
         SAM_PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
         if [[ -n $SAM_INSTALL_USER ]];then
             SAM_INSTALL_PASSWORD=`sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
-            SAM_INSTALL_EMAIL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposEmail from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
             SAM_INSTALL_REPOS_URL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
-            if [ -n "$SAM_INSTALL_EMAIL" ];then
-                SAM_INSTALL_COMMAND_OPTIONS="--email=$SAM_INSTALL_EMAIL";
-            else
-                SAM_INSTALL_COMMAND_OPTIONS='--email=none';
-            fi;
-            docker login --username=$SAM_INSTALL_USER --password=`echo "$SAM_INSTALL_PASSWORD" | base64 -d` $SAM_INSTALL_COMMAND_OPTIONS $SAM_PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
+            docker login --username=$SAM_INSTALL_USER --password=`echo "$SAM_INSTALL_PASSWORD" | base64 -d` $SAM_PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
             if [[ $? -ne 0 ]]; then
                 echo -e "\E[31mERROR: Wrong login/password or repository url.">&2;tput sgr0;
             fi;
@@ -1005,7 +993,7 @@ addrepo_func(){
     GETOPT_PASSWORD=`echo "$GETOPT_PASSWORD" | base64`;
 
     #save in db
-    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('$GETOPT_DEFAULT','$GETOPT_NAME','$GETOPT_SERVER','$GETOPT_USERNAME','$GETOPT_PASSWORD','$GETOPT_EMAIL');";
+    sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass) values ('$GETOPT_DEFAULT','$GETOPT_NAME','$GETOPT_SERVER','$GETOPT_USERNAME','$GETOPT_PASSWORD')";
     if [[ -n $GETOPT_DEFAULT ]];then
        sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=''";
        sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where ReposName='$GETOPT_NAME'";
@@ -1054,8 +1042,7 @@ modifyrepo_func(){
     GETOPT_SERVER=`[[ -z $GETOPT_SERVER ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_SERVER`;
     GETOPT_USERNAME=`[[ -z $GETOPT_USERNAME ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposUser from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_USERNAME`;
     GETOPT_PASSWORD=`[[ -z $GETOPT_PASSWORD ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_PASSWORD | base64`;
-    GETOPT_EMAIL=`[[ -z $GETOPT_EMAIL ]] && sqlite3 $SAM_DB_SQLITE "SELECT ReposEmail from $SAM_DB_TABLE_REPOS where id='$1'" || echo $GETOPT_EMAIL`;
-    sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposName='$GETOPT_NAME',ReposUrl='$GETOPT_SERVER',ReposUser='$GETOPT_USERNAME',ReposPass='$GETOPT_PASSWORD',ReposEmail='$GETOPT_EMAIL' where id='$1'";
+    sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposName='$GETOPT_NAME',ReposUrl='$GETOPT_SERVER',ReposUser='$GETOPT_USERNAME',ReposPass='$GETOPT_PASSWORD' where id='$1'";
     if [[ $GETOPT_DEFAULT == '*' ]];then
         sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag=''";
         sqlite3 $SAM_DB_SQLITE "update $SAM_DB_TABLE_REPOS SET ReposFlag='*' where id='$1'";
@@ -1076,7 +1063,7 @@ listrepos_func(){
         echo "$LIST_REPOSITORIES" | sed -e "1 a `for i in \`seq 1 $LIST_REPOSITORIES_MAX_LINE\`; do echo -n '-';  done`"
         echo;
     else
-        sqlite3 $SAM_DB_SQLITE "SELECT id, ReposFlag, ReposName, ReposUrl, ReposUser, ReposEmail FROM $SAM_DB_TABLE_REPOS";
+        sqlite3 $SAM_DB_SQLITE "SELECT id, ReposFlag, ReposName, ReposUrl, ReposUser FROM $SAM_DB_TABLE_REPOS";
     fi;
 }
 
@@ -1214,7 +1201,7 @@ help_func(){
 }
 
 ###Case section
-SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,email:,all,labels,restore --name "sam" -- "$@"`
+SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,all,labels,restore --name "sam" -- "$@"`
 eval set -- "$SAM_ARGUMENT";
 unset SAM_ARGUMENT;
 unset GETOPT_RAW;
@@ -1223,7 +1210,6 @@ unset GETOPT_NAME;
 unset GETOPT_SERVER;
 unset GETOPT_USERNAME;
 unset GETOPT_PASSWORD;
-unset GETOPT_EMAIL;
 unset GETOPT_ALL;
 unset GETOPT_LABELS;
 unset GETOPT_RESTORE;
@@ -1261,10 +1247,6 @@ while true ; do
             ;;
         --password)
             GETOPT_PASSWORD=$2;
-            shift 2
-            ;;
-        --email)
-            GETOPT_EMAIL=$2;
             shift 2
             ;;
         --all)
