@@ -72,7 +72,7 @@ create_tag_app(){
         local SAM_APP_LABEL=`docker inspect $1 | grep -m 1 com.smilart.repo_base_name | awk -F '"'  '{print $4}'`
         if [[ -n $SAM_APP_LABEL ]];then
                 echo;
-                echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2'";tput sgr0;
+                echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2'...";tput sgr0;
                 docker tag $1 $SAM_APP_LABEL/$2;
                 if [[ $? -ne 0 ]]; then
                     echo -e "\E[31mERROR: Cannot create tag ${SAM_APP_LABEL}/$2 for docker image $1.">&2;tput sgr0;
@@ -134,7 +134,6 @@ save_app_in_db(){
 #if app exist or not found label com.smilart.multiple_versions="supported" then error
 check_app_in_db(){
     # This function return exit code 1 if executed conditions
-
     # exist fullname
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND ImageVersion='$3'"` ]];then
         echo -e "\E[31mERROR: Application $2:$3 already exists in SAM database.">&2;tput sgr0;
@@ -244,7 +243,7 @@ if [[ -z `which sqlite3` ]]; then
         exit 1;
 fi;
 
-# Exist dbs?
+# Exist db?
 SAM_DB_TABLE_INSTALL_APPS="Apps";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_APPS'"` ]];then
         echo;
@@ -264,7 +263,11 @@ if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='tab
         echo;
         sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','official','$SAM_DB_TABLE_REPOS_URL','','','');";
 fi;
-unset SAM_DB_TABLE_REPOS_URL;
+
+if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'"` ]];then
+    echo -e "\E[31mERROR: Cannot find default repository in SAM database.">&2;tput sgr0;
+    exit 1;
+fi;
 
 # Converting db to db with multiversion
 convert_with_multiversion(){
@@ -1135,13 +1138,8 @@ search_func(){
     local LIST_IMAGES;
     local FLUG_SHOW_VERSIONS;
 
-    #Exist repository in db?
-    SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`
-    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"` ]];then
-        echo -e "\E[31mERROR: Cannot find default repository in SAM database.">&2;tput sgr0;
-        exit 1;
-    fi;
     #Reade info from db
+    SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`
     SAM_INSTALL_PASSWORD=`sqlite3 $SAM_DB_SQLITE "SELECT ReposPass from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'" | base64 -d`;
     SAM_INSTALL_REPOS_URL=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
     #Get list images
