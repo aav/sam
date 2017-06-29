@@ -17,7 +17,7 @@ copy_meta_func() {
         TEMPLATE_DIR=`mktemp -d`;
         docker run -i -t --rm -v $TEMPLATE_DIR:$TEMPLATE_DIR  --net=host --entrypoint="cp" $1 -r /meta $TEMPLATE_DIR/meta 2>&1 > /dev/null;
         if [[ $? -ne 0 ]]; then
-                echo -e "\E[31mERROR: Directory '/meta' not found in image.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Invalid image format. Directory '/meta' doesn't exist in the image.">&2;tput sgr0;
                 rm -rf $TEMPLATE_DIR;
                 if [ -n `sqlite3 $SAM_DB_SQLITE "select ImageName from $SAM_DB_TABLE_INSTALL_APPS where DockerId=$1"` ] ; then
                     read -r -p "Remove the app from sam repository? [y/N] " response
@@ -72,22 +72,22 @@ create_tag_app(){
         local SAM_APP_LABEL=`docker inspect $1 | grep -m 1 com.smilart.repo_base_name | awk -F '"'  '{print $4}'`
         if [[ -n $SAM_APP_LABEL ]];then
                 echo;
-                echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2' from app";tput sgr0;
+                echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2'";tput sgr0;
                 docker tag $1 $SAM_APP_LABEL/$2;
                 if [[ $? -ne 0 ]]; then
-                    echo -e "\E[31mERROR: Not created app tag.">&2;tput sgr0;
+                    echo -e "\E[31mERROR: Cannot create tag ${SAM_APP_LABEL}/$2 for docker image $1.">&2;tput sgr0;
                     exit 1;
                 fi;
         else
                 echo;
-                echo "Not found Label for app.";
+                echo "Invalid image format. Label com.smilart.repo_base_name doesn't exist in the image $1.";
         fi;
 }
 # Delete apps in db function
 # delete_app_to_db_func <DockerId>;
 delete_app_to_db_func() {
-        echo  "Deleting app in db.";
         sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$1'";
+        echo "Application was removed from SAM database"
 }
 
 create_connect_func() {
@@ -128,9 +128,9 @@ save_app_in_db(){
     if [[ -z "$LABEL_FAMILY" ]];then
         LABEL_FAMILY="$2"; 
     fi;
-    echo  "Save app to db.";
-    
+
     sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_INSTALL_APPS (DockerId,ImageName,ImageVersion,ImageRepos,MultiVersion,Family) values ('$1','$2','$3','$4','$LABEL_MULTIVERSION','$LABEL_FAMILY');";
+    echo "Application was saved in SAM database."
 }
 
 # check_app_in_db <DockerId> <ImageName> <ImageVersion>
@@ -138,14 +138,14 @@ save_app_in_db(){
 check_app_in_db(){
     # This function return exit code 1 if executed conditions
 
-    # exist fulname
+    # exist fullname
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND ImageVersion='$3'"` ]];then
-        echo -e "\E[31mERROR: Apps $2:$3 exist in db.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Application $2:$3 already exists in SAM database.">&2;tput sgr0;
         return 1;
     fi;
     # exist with docker id
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$1'"` ]];then
-        echo -e "\E[31mERROR: Apps with docker id '$1' exist in db.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Application with docker image id '$1' already exists in SAM database.">&2;tput sgr0;
         return 1;
     fi;
 
@@ -158,24 +158,24 @@ check_app_in_db(){
     if [[ "$LABEL_MULTIVERSION" == "supported" ]];then
         # and if name exist in db among without multiversion
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND MultiVersion=''"` ]];then
-            echo -e "\E[31mERROR: Apps with name \"$2\" exist in db.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Application with name \"$2\" already exists in SAM database.">&2;tput sgr0;
             return 1;
         fi;
         # and if family exist in db among without multiversion
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where Family='$LABEL_FAMILY' AND MultiVersion=''"` ]];then
-             echo -e "\E[31mERROR: Apps with family '$LABEL_FAMILY' exist in db.">&2;tput sgr0;
+             echo -e "\E[31mERROR: Application with family '$LABEL_FAMILY' already exists in SAM database.">&2;tput sgr0;
              return 1;
         fi;
     else
     # if app doesn't have label multiversion
         # and if name exist in db
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2'"` ]];then
-            echo -e "\E[31mERROR: Apps with name \"$2\" exist in db.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Application with name \"$2\" already existis in SAM database.">&2;tput sgr0;
             return 1;
         fi;
         # and if family exist in db
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where Family='$LABEL_FAMILY'"` ]];then
-             echo -e "\E[31mERROR: Apps with family '$LABEL_FAMILY' exist in db.">&2;tput sgr0;
+             echo -e "\E[31mERROR: Application with family '$LABEL_FAMILY' already exists in SAM database.">&2;tput sgr0;
              return 1;
         fi;
     fi;
@@ -196,7 +196,7 @@ pull_image_from_repo(){
         fi;
         docker login --username=$DOCKER_LOGIN_USER --password=`echo "$DOCKER_LOGIN_PASSWORD" | base64 -d` $DOCKER_LOGIN_COMMAND_OPTIONS $PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
         if [[ $? -ne 0 ]]; then
-            echo -e "\E[31mERROR: Wrong login/password or url from repository.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Wrong login/password or repository url.">&2;tput sgr0;
             exit 1;
         fi;
     fi;
@@ -213,7 +213,7 @@ if [[ ! -d /var/db/sam ]];then
 fi;
 
 if [[ -z `which docker` ]]; then
-        echo -e "\E[31mERROR: Not found command 'docker' in system.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Command 'docker' not found in the system.">&2;tput sgr0;
         exit 1;
 fi;
 
@@ -225,13 +225,13 @@ fi
 
 # Exist BIN_DIR dirrectory ?
 if ! [[ -d $BIN_DIR ]]; then
-        echo "Creating $BIN_DIR.";
+        echo "Creating $BIN_DIR...";
         mkdir -p $BIN_DIR;
 fi
 
 # Exist BIN_DIR in path ?
 if [[ -z `echo $PATH | grep $BIN_DIR` ]]; then
-        echo -e "\E[31mERROR: Not found path \"$BIN_DIR\" in environments \$PATH. Add.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Path \"$BIN_DIR\" not found in variable \$PATH. You must add $BIN_DIR to \$PATH.">&2;tput sgr0;
         exit 1;
 fi;
 
@@ -243,7 +243,7 @@ fi;
 
 # Exist command sqlite3
 if [[ -z `which sqlite3` ]]; then
-        echo -e "\E[31mERROR: Not found command 'sqlite3' in system.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Command 'sqlite3' not found in the system.">&2;tput sgr0;
         exit 1;
 fi;
 
@@ -251,7 +251,7 @@ fi;
 SAM_DB_TABLE_INSTALL_APPS="Apps";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_INSTALL_APPS'"` ]];then
         echo;
-        echo "Creating table $SAM_DB_TABLE_INSTALL_APPS.";
+        echo "Creating table $SAM_DB_TABLE_INSTALL_APPS...";
         echo;
         sqlite3 $SAM_DB_SQLITE "create table $SAM_DB_TABLE_INSTALL_APPS (id INTEGER PRIMARY KEY,DockerId TEXT,ImageName TEXT,ImageVersion TEXT,ImageRepos INTEGER,MultiVersion TEXT,Family TEXT);";
 fi;
@@ -260,10 +260,10 @@ SAM_DB_TABLE_REPOS="Repos";
 SAM_DB_TABLE_REPOS_URL="smilart";
 if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT name FROM sqlite_master WHERE type='table' AND name='$SAM_DB_TABLE_REPOS'"` ]];then
         echo;
-        echo "Creating table $SAM_DB_TABLE_REPOS.";
+        echo "Creating table $SAM_DB_TABLE_REPOS...";
         echo;
         sqlite3  $SAM_DB_SQLITE "create table $SAM_DB_TABLE_REPOS (id INTEGER PRIMARY KEY,ReposFlag TEXT,ReposName TEXT,ReposUrl, TEXT, ReposUser TEXT, ReposPass TEXT, ReposEmail TEXT);";
-        echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL";
+        echo "Adding default repository: $SAM_DB_TABLE_REPOS_URL"...;
         echo;
         sqlite3 $SAM_DB_SQLITE "insert into $SAM_DB_TABLE_REPOS (ReposFlag,ReposName,ReposUrl,ReposUser,ReposPass,ReposEmail) values ('*','official','$SAM_DB_TABLE_REPOS_URL','','','');";
 fi;
@@ -327,14 +327,14 @@ convert_with_family(){
         fi;
         sqlite3 $SAM_DB_SQLITE "UPDATE $SAM_DB_TABLE_INSTALL_APPS SET Family='$LABEL_FAMILY' WHERE DockerId='$APPS_ID'";
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Can't add label to column MultiVersion in db.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Can't add label to column Family in db.">&2;tput sgr0;
         fi;
     done;
 }
 
 sqlite3 $SAM_DB_SQLITE "SELECT Family FROM $SAM_DB_TABLE_INSTALL_APPS" > /dev/null 2>&1;
 if [[ $? -ne 0 ]];then
-     echo -e "\E[33mWARN: Db of sam doesn't contain information about family support.";tput sgr0;
+     echo -e "\E[33mWARN: SAM database doesn't contain information about family support.";tput sgr0;
      echo "Creating column Family to $SAM_DB_TABLE_INSTALL_APPS.";
      sqlite3 $SAM_DB_SQLITE "ALTER TABLE $SAM_DB_TABLE_INSTALL_APPS ADD COLUMN Family TEXT";
      if [[ $? -ne 0 ]];then
@@ -364,9 +364,9 @@ USAGE="
      Software Management:
         install, in             Install applications.
         remove, rm              Remove applications.
-        purge                   Cleare images of the docker not registered in sam.
+        purge                   Clear docker images isn't registered in SAM database.
         list                    List installed applications.
-        search, se              Search image version on private registry.
+        search, se              Search image version in remote repository.
         info                    Print application info.
         upgrade, up             Upgrade Smilart Os.
      
@@ -387,7 +387,7 @@ USAGE_INSTALL="
 install (in) <app>:<version>
 install (in) <filename>
 
-Install smilart applications with specified capabilities from repository and from gzip or tar archive.
+Install smilart application with specified capabilities from repository or from gzip/tar archive.
 
 ";
 
@@ -401,26 +401,26 @@ Update Core OS with the update engine client.
 USAGE_REMOVE="
 remove (rm) <app>[:<version>]
 
-Remove smilart applications with specified capabilities.
+Remove smilart application with specified capabilities.
 
 ";
 
 USAGE_SEARCH="
-search (se) [image name]
+search (se) [<image_name>]
 
-Search version docker images from private docker-registry.
-WARN: Search does not work on official Docker Hub.
+Search application in remote repository.
+WARN: Search does not work in official Docker Hub repository.
 
 ";
 
 USAGE_LIST="
 list [options]
 
-List all install smilart applications.
+List all installed Smilart applications.
 
   Command options:
-    --raw                       List all install smilart applications in RAW format.
-    --labels                    List all applications with labels.
+    --raw                       List all installed Smilart applications in RAW format.
+    --labels                    List all installed applications with labels.
 
 ";
 
@@ -438,8 +438,8 @@ Add a repository to the system.
 
   Command options:
     --default                   Add the repository as default.
-    --name                      Add a descriptive name for the repository.
-    --server                    Add a hostname to server docker-registry.
+    --name                      Add a descriptive repository name.
+    --server                    Add a remote repository hostname.
     --username                  Optional. Add the user name for authentication.
     --password                  Optional. Add the password for authentication.
     --email                     Optional. Add the email for authentication.
@@ -447,7 +447,7 @@ Add a repository to the system.
 ";
 
 USAGE_REMOVEREPO="
-removerepo (rr) <id|name>
+removerepo (rr) <id>|<name>
 
 Remove repository specified by name or number.
 
@@ -466,7 +466,7 @@ modifyrepo (mr) <id> [--default] [--name <name>] [--server <hostname>] [--userna
 Modify properties of repositories specified.
 
   Command options:
--d  --default                   Set priority of the repository.
+-d  --default                   Mark the repository as default.
     --name                      Set a descriptive name for the repository.
     --server                    Set a server name to docker-registry.
     --username                  Set the user name for authentication to the server.
@@ -478,27 +478,29 @@ Modify properties of repositories specified.
 USAGE_EXPORT="
 export (ex) <file> [--all]
 
-Default, export apps list in a special format to a file.
+Export apps list in a special format to a <file>.
 
   Command options:
-    --all                       Save apps to gzip archive and add thim to tar. Export to archive.
+    --all                       Save apps to gzip archive and add them to tar. Export to archive.
 
 ";
 
 USAGE_IMPORT="
 import (im) <file> [--restore]
 
-Default, import apps list or archive with apps.
+Import apps list or archive with apps.
 
   Command options:
-    --restore                   Sam uninstall all apps and import it from list.
+    --restore                   Uninstall all installed apps and import new apps from <file>.
 
 ";
 
 USAGE_LISTREPOS="
-listrepos (lr) [options]
+listrepos (lr) [--raw]
 
 List all defined repositories.
+
+  Command options:
     --raw                       List all defined repositories in RAW format.
 ";
 
@@ -523,11 +525,11 @@ install_func(){
         # Find file "repositories" (check format app)
         CHECK_APP_IN_FILE="`tar -xOf $1 repositories 2>&1`";
         if [[ $? -ne 0 ]]; then
-            echo -e "\E[31mERROR: File repositories not found in archive.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Invalid file format. File 'repositories' not found in $1 or archive is corrupted..">&2;tput sgr0;
             exit 1;
         fi;
         if [[ -z "$CHECK_APP_IN_FILE" ]]; then
-            echo -e "\E[31mERROR: Incorrectly created archive. File repositories is bad.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Invalid file format. Unknown problem.">&2;tput sgr0;
             exit 1;
         fi;
 
@@ -535,16 +537,16 @@ install_func(){
         SAM_INSTALL_APP=`echo "$CHECK_APP_IN_FILE" | awk -F '"' ' {print $2} ' | sed "s/ /:/g" | awk -F '/' '{print $NF}'`;
         SAM_INSTALL_VERSION=`echo "$CHECK_APP_IN_FILE" | awk -F '"' ' {print $4} ' | sed "s/ /:/g"`;
         if [[ -z $SAM_PREFIX_IMAGE_DOCKER ]] || [[ -z $SAM_INSTALL_VERSION ]]; then
-            echo -e "\E[31mERROR: Incorrect file 'repositories' in archive.">&2;tput sgr0;
-            echo "Not found application name or version in file.";
-            echo "May be incorrectly created archive.";
+            echo -e "\E[31mERROR: Invalid file format. File 'repositories' is bad.">&2;tput sgr0;
+            echo "Application name and/or version not found in the file 'repositories'";
+            echo "Try to recreate archive.";
             exit 1;
         fi;
 
-        echo "Loading image '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'.";
+        echo "Loading image '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'...";
         docker load -i $1;
         if [[ $? -ne 0 ]]; then
-            echo -e "\E[31mERROR: Loading image.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot load image.">&2;tput sgr0;
             exit 1;
         fi;
 
@@ -555,7 +557,7 @@ install_func(){
         # if $1 app from docker repo
         SAM_INSTALL_VERSION=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'`;
         if [[ -z $SAM_INSTALL_VERSION ]];then
-            echo -e "\E[31mERROR: Version in string '$1' is not found.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Invalid parameter. '$1' doesn't contain application version.">&2;tput sgr0;
             exit 1;
         fi;
         SAM_INSTALL_APP=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $1}'`;
@@ -565,7 +567,7 @@ install_func(){
         fi;
         #Exist repository in db?
         if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"` ]];then
-            echo -e "\E[31mERROR: Not found name repository '$SAM_INSTALL_REPOS_NAME' in db.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Repository '$SAM_INSTALL_REPOS_NAME' not found in SAM database.">&2;tput sgr0;
             exit 1;
         fi;
         #logging
@@ -582,20 +584,20 @@ install_func(){
             fi;
             docker login --username=$SAM_INSTALL_USER --password=`echo "$SAM_INSTALL_PASSWORD" | base64 -d` $SAM_INSTALL_COMMAND_OPTIONS $SAM_PREFIX_IMAGE_DOCKER 2>&1 > /dev/null;
             if [[ $? -ne 0 ]]; then
-                echo -e "\E[31mERROR: Wrong login/password or url from repository.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Wrong login/password or repository url.">&2;tput sgr0;
             fi;
         fi;
         SAM_INSTALL_REPO_ID=`sqlite3 $SAM_DB_SQLITE "SELECT Id FROM $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"`;
         # pull app
         docker pull $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
         if [[ $? -ne 0 ]]; then
-            echo -e "\E[31mERROR: Not download smilart applications.">&2;tput sgr0;
-            echo "Find local application.";
+            echo -e "\E[31mERROR: Cannot download $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION.">&2;tput sgr0;
+            echo "Trying to find application locally...";
             SAM_INSTALL_REPO_ID='';
         fi;
         SAM_INSTALL_DOCKER_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION:" | awk -F ':' '{print $NF}'`;
         if [[ -z $SAM_INSTALL_DOCKER_ID ]];then
-            echo -e "\E[31mERROR: Not found smilart applications '$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Applications '$SAM_INSTALL_APP:$SAM_INSTALL_VERSION' not found locally.">&2;tput sgr0;
             exit 1;
         fi;
         docker logout 2>&1 > /dev/null;
@@ -610,14 +612,14 @@ install_func(){
 
     create_tag_app $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
     echo;
-    echo -e "\E[32mInstalling app $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION.";tput sgr0;
+    echo -e "\E[32mInstalling app $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION...";tput sgr0;
     install_app_func $SAM_INSTALL_DOCKER_ID;    
     save_app_in_db $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID;
     if [[ $? -ne 0 ]]; then
-        echo -e "\E[31mERROR: Not save in db. '$SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID'">&2;tput sgr0;
+        echo -e "\E[31mERROR: Cannot save '$SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID' in SAM database">&2;tput sgr0;
         exit 1;
     fi;
-    echo -e "\E[32mApp $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION installed.";tput sgr0;
+    echo -e "\E[32mApplication $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION was successfully installed.";tput sgr0;
     echo;
 }
 
@@ -670,7 +672,7 @@ remove_func(){
 
     COUNT_APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'" | wc -l`;
     case "$COUNT_APPS_NAME" in
-        "0") echo -e "\E[31mERROR: App $SAM_REMOVE_NAME not found in db.">&2;tput sgr0;
+        "0") echo -e "\E[31mERROR: Application $SAM_REMOVE_NAME not found in SAM database.">&2;tput sgr0;
              exit 1
             ;;
 
@@ -683,7 +685,7 @@ remove_func(){
 
         *) SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`";
            if [[ -z $SAM_REMOVE_VERSION ]];then
-               echo -e "\E[31mERROR: App $SAM_REMOVE_NAME has several versions.">&2;tput sgr0;
+               echo -e "\E[31mERROR: Application $SAM_REMOVE_NAME has several versions.">&2;tput sgr0;
                exit 1
            fi;
           ;;
@@ -691,15 +693,15 @@ remove_func(){
    
     SAM_REMOVE_DOCKER_ID="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME' AND ImageVersion='$SAM_REMOVE_VERSION'\"`";
     if [[ -z "$SAM_REMOVE_DOCKER_ID" || "`echo \"$SAM_REMOVE_DOCKER_ID\" | wc -l`" != "1" ]];then
-        echo -e "\E[31mERROR: App $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION not found in db.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Application $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION not found in SAM database.">&2;tput sgr0;
              exit 1;
     fi;
 
     echo;
-    echo -e "\E[32mUninstalling app $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION.";tput sgr0;
+    echo -e "\E[32mRemoving app $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION...";tput sgr0;
     uninstall_app_func $SAM_REMOVE_DOCKER_ID;
     delete_app_to_db_func $SAM_REMOVE_DOCKER_ID;
-    echo -e "\E[32mApp $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION uninstalled.";tput sgr0;
+    echo -e "\E[32mApplication $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION was successfully removed.";tput sgr0;
 }
 
 list_func(){
@@ -735,7 +737,7 @@ info_func(){
 
     SAM_INFO_APP=$1;
     if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"` ]];then
-        echo -e "\E[31mERROR: App not found in db.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Application $1 not found in SAM database.">&2;tput sgr0;
         exit 1;
     fi;
     SAM_INFO_DOCKER_ID=`sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"`;
@@ -760,13 +762,13 @@ export_func(){
     local PREFIX_IMAGE='smilart';
     local OS_NAME="`cat /etc/os-release | grep "PRETTY_NAME=" | awk -F '"' '{print $2}'`";
     if [[ -z "$OS_NAME" ]];then
-        echo -e "\E[31mERROR: File /etc/os-release not contain variable PRETTY_NAME.">&2;tput sgr0;
+        echo -e "\E[31mERROR: File /etc/os-release doesn't contain variable PRETTY_NAME.">&2;tput sgr0;
         exit 1;
     fi;
 
     echo > "$1";
     if [[ $? -ne 0 ]];then
-         echo -e "\E[31mERROR: Can't create file $1.">&2;tput sgr0;
+         echo -e "\E[31mERROR: Cannot create file $1.">&2;tput sgr0;
          exit 1;
     fi;
 
@@ -777,16 +779,16 @@ export_func(){
 
     else
         local TMPL_DIR=`mktemp -d`;
-        echo "Creating tmp directory $TMPL_DIR";
+        echo "Creating tmp directory $TMPL_DIR"...;
 
-        echo "Saving apps to gzip archives:"
+        echo "Saving apps to gzip archive:"
         for EXPORT_APP in `echo "$EXPORT_LIST_APPS"`
         do
             EXPORT_FILE_NAME="`echo $EXPORT_APP | awk -F '|' '{print $1 "-" $2 ".gz"}'`";
             echo "   -> $TMPL_DIR/$EXPORT_FILE_NAME";
             docker save $PREFIX_IMAGE/`echo $EXPORT_APP | awk -F '|' '{print $1 ":" $2}'` | gzip > $TMPL_DIR/$EXPORT_FILE_NAME;
             if [[ $? -ne 0 ]];then
-                echo -e "\E[31mERROR: Can't save image.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Cannot save image.">&2;tput sgr0;
                 exit 1;
             fi;
 
@@ -795,15 +797,15 @@ export_func(){
             local NewName=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | sed s#$FPostfix#.$CKSUM.$FPostfix#g`;
             mv $TMPL_DIR/$EXPORT_FILE_NAME $NewName;
             if [[ $? -ne 0 ]];then
-                echo -e "\E[31mERROR: Can't count checksum archive.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Cannot count checksum archive.">&2;tput sgr0;
                 exit 1;
             fi;
         done;
 
-        echo "Creating images list";
+        echo "Creating images list...";
         echo "#$OS_NAME#" > $TMPL_DIR/imagelist;
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Can't create export file $TMPL_DIR/imagelist.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot create export file $TMPL_DIR/imagelist.">&2;tput sgr0;
             exit 1;
         fi;
         echo "$EXPORT_LIST_APPS" >> $TMPL_DIR/imagelist;
@@ -811,28 +813,28 @@ export_func(){
         echo "Creating $1";
         (cd $TMPL_DIR && tar cf archive.tar *)
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Can't create archive $TMPL_DIR/archive.tar.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot create archive $TMPL_DIR/archive.tar.">&2;tput sgr0;
             exit 1;
         fi;
         mv $TMPL_DIR/archive.tar "$1";
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Can't create archive '$1'.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot create archive '$1'.">&2;tput sgr0;
             exit 1;
         fi;
 
-        echo "Clearing tmp directories";
+        echo "Clear temp directories...";
         rm -rf $TMPL_DIR;
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Can't remove $TMPL_DIR.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot remove $TMPL_DIR.">&2;tput sgr0;
             exit 1;
         fi;
     fi
-    echo -e "\E[32mComplete. Saved to '$1'.";tput sgr0;
+    echo -e "\E[32mComplete. Export result is saved to '$1'.";tput sgr0;
 }
 
 import_func(){
     if ! [[ -f "$1" ]];then
-        echo -e "\E[31mERROR: $1 is not file.">&2;tput sgr0;
+        echo -e "\E[31mERROR: File $1 not found.">&2;tput sgr0;
         exit 1;
     fi;
 
@@ -849,12 +851,12 @@ import_func(){
     #Check OS
     local OS_NAME="`cat /etc/os-release | grep "PRETTY_NAME=" | awk -F '"' '{print $2}'`";
     if [[ -z "$OS_NAME" ]];then
-        echo -e "\E[31mERROR: File /etc/os-release not contain variable PRETTY_NAME.">&2;tput sgr0;
+        echo -e "\E[31mERROR: File /etc/os-release does not contain variable PRETTY_NAME.">&2;tput sgr0;
         exit 1;
     fi;
     local OS_EXPORT="`cat $TMPL_DIR/imagelist | head -1 | awk -F '#' '{print $2}'`";
     if [[ -z "$OS_EXPORT" ]];then
-        echo -e "\E[31mERROR: Format file '$1' is not format export of sam.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Invalid file format.">&2;tput sgr0;
         exit 1;
     fi;
     if [[ "$OS_NAME" != "$OS_EXPORT" ]];then
@@ -862,7 +864,7 @@ import_func(){
         echo "$OS_NAME";
         echo -e -n "\n\E[33mVesrion OS from export file: ";tput sgr0;
         echo "$OS_EXPORT";
-        read -r -p "This versions OS may not be compatible. Continue the import? [y/N] " response
+        read -r -p "This OS versions can be incompatible. Continue the import? [y/N] " response
                     case $response in
                         [yY][eE][sS]|[yY])
                           echo
@@ -882,13 +884,13 @@ import_func(){
             echo -e "\E[32mDocker load image from $TMPL_DIR/$IMPORT_FILE_NAME.\n";tput sgr0;
             docker load -i $TMPL_DIR/$IMPORT_FILE_NAME;
             if [[ $? -ne 0 ]];then
-                 echo -e "\E[31mERROR: Can not loading $TMPL_DIR/$IMPORT_FILE_NAME. Import is aborted.">&2;tput sgr0;
+                 echo -e "\E[31mERROR: Cannot load $TMPL_DIR/$IMPORT_FILE_NAME. Import was aborted.">&2;tput sgr0;
                  exit 1;
             fi;
         done
     fi;
 
-    echo -e "\E[32mCheck for applications available for installation.\n";tput sgr0;
+    echo -e "\E[32mCheck applications availability for installation.\n";tput sgr0;
 
     local PREFIX_IMAGE='smilart';
     local IMPORT_APP;
@@ -906,8 +908,7 @@ import_func(){
              echo;
              pull_image_from_repo $IMPORT_APP_NAME $IMPORT_APP_VERSION;
              if [[ $? -ne 0 ]];then
-                  echo -e "\E[31mERROR: Can not pull '$IMPORT_APP_NAME:$IMPORT_APP_VERSION' from current repository of sam.">&2;tput sgr0;
-                  echo "Not exist in system app $IMPORT_APP_NAME:$IMPORT_APP_VERSION. Import is aborted.";
+                  echo -e "\E[31mERROR: Cannot pull '$IMPORT_APP_NAME:$IMPORT_APP_VERSION' from SAM default repository. Import was aborted.">&2;tput sgr0;
                   exit 1;
              fi;
 
@@ -915,7 +916,7 @@ import_func(){
              IMPORT_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION:" | awk -F ':' '{print $NF}'`;
              create_tag_app $IMPORT_APP_ID $IMPORT_APP_NAME:$IMPORT_APP_VERSION;
              if [[ -z $IMPORT_APP_ID ]];then
-                 echo -e "\E[31mERROR: Not found docker image '$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION'.">&2;tput sgr0;
+                 echo -e "\E[31mERROR: Docker image '$PREFIX_IMAGE/$IMPORT_APP_NAME:$IMPORT_APP_VERSION' not found.">&2;tput sgr0;
                  exit 1;
              fi;
              docker logout 2>&1 > /dev/null;
@@ -952,7 +953,7 @@ import_func(){
         fi;
         echo "$IMPORT_APP_NAME:$IMPORT_APP_VERSION|$IMPORT_APP_ID|$IMPORT_APP_REPO_ID" >> $LIST_APPS_ADD;
 
-    done;	
+    done;
     #If exist flug --restore then remove all apps
     if [[ "$GETOPT_RESTORE" == "true" ]];then
         APPS_REMOVE=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName, ImageVersion from $SAM_DB_TABLE_INSTALL_APPS" | awk -F '|' '{print $1 ":" $2}'`
@@ -964,19 +965,19 @@ import_func(){
     #Print changes lists
     echo; 
     if [[ -f $LIST_APPS_SKIP ]];then 
-        echo -e "List skiping apps:\E[33m";
+        echo -e "List skipped applications:\E[33m";
         cat $LIST_APPS_SKIP;
         tput sgr0;
         echo;
     fi;
     if [[ -f $LIST_APPS_REMOVE ]];then
-        echo -e "List removing apps:\E[31m";
+        echo -e "List removed applications:\E[31m";
         cat $LIST_APPS_REMOVE;
         tput sgr0;
         echo;
     fi;
     if [[ -f $LIST_APPS_ADD ]];then
-        echo -e "List adding apps:\E[32m";
+        echo -e "List added applications:\E[32m";
         cat $LIST_APPS_ADD | awk -F '|' '{print $1}';
         tput sgr0;
         echo;
@@ -994,7 +995,7 @@ import_func(){
     
     #REMOVE apps
     if [[ -f $LIST_APPS_REMOVE ]];then
-        echo -e "\E[32mRemoving apps from the system.\n";tput sgr0;
+        echo -e "\E[32mRemoving applications from the system.\n";tput sgr0;
         for IMPORT_APP_REMOVE in `cat "$LIST_APPS_REMOVE"`    
         do
              remove_func "$IMPORT_APP_REMOVE";
@@ -1003,7 +1004,7 @@ import_func(){
 
     #INSTALL apps
     if [[ -f $LIST_APPS_ADD ]];then
-        echo -e "\E[32m\nInstalling apps from cache docker.\n";tput sgr0;
+        echo -e "\E[32m\nInstalling apps from docker cache.\n";tput sgr0;
         for IMPORT_APP_ADD in `cat "$LIST_APPS_ADD"`    
         do
             IMPORT_APP_NAME="`echo $IMPORT_APP_ADD | awk -F '|' '{print $1}' | awk -F ':' '{print $1}'`";
@@ -1014,21 +1015,21 @@ import_func(){
             install_app_func $IMPORT_APP_ID;
             save_app_in_db $IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID;
             if [[ $? -ne 0 ]]; then
-                echo -e "\E[31mERROR: Not save in db. '$IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID'">&2;tput sgr0;
+                echo -e "\E[31mERROR: '$IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID was not saved in SAM database'">&2;tput sgr0;
                 exit 1;
             fi;
             echo;
         done;
     fi;
 
-    echo "Clearing tmp directories";
+    echo "Clear temp directories";
     rm -rf $TMPL_DIR;
     if [[ $? -ne 0 ]];then
-        echo -e "\E[31mERROR: Can't remove $TMPL_DIR.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Cannot remove $TMPL_DIR.">&2;tput sgr0;
         exit 1;
     fi;
 
-    echo -e "\E[32m\nComplete.";tput sgr0;
+    echo -e "\E[32m\nImport was completed successfully.";tput sgr0;
 
 }
 
@@ -1041,7 +1042,7 @@ addrepo_func(){
     fi;
     #Exist name in db?
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$GETOPT_NAME'"` ]];then
-         echo -e "\E[31mERROR: Repository name '$GETOPT_NAME' exist in db.">&2;tput sgr0;
+         echo -e "\E[31mERROR: Repository name '$GETOPT_NAME' already exists in SAM database.">&2;tput sgr0;
          exit 1;
     fi;
     GETOPT_PASSWORD=`echo "$GETOPT_PASSWORD" | base64`;
@@ -1061,7 +1062,7 @@ removerepo_func(){
         #delete in db
         #Default repository?
         if [[ '*' == `sqlite3 $SAM_DB_SQLITE "select ReposFlag from $SAM_DB_TABLE_REPOS where ReposName='$1'"` ]]; then
-                echo -e "\E[31mERROR: Repository with name '$1' is default.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Repository '$1' is default.">&2;tput sgr0;
                 exit 1;
         fi;
         sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where ReposName='$1'";
@@ -1071,12 +1072,12 @@ removerepo_func(){
         #delete in db
         #Default repository?
         if [[ '*' == `sqlite3 $SAM_DB_SQLITE "select ReposFlag from $SAM_DB_TABLE_REPOS where Id='$1'"` ]]; then
-                echo -e "\E[31mERROR: Repository with number '$1' is default.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Repository number '$1' is default.">&2;tput sgr0;
                 exit 1;
         fi;
         sqlite3 $SAM_DB_SQLITE "delete from $SAM_DB_TABLE_REPOS where Id='$1'";
     else
-            echo -e "\E[31mERROR: Repository name and number '$1' not found in db.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Repository name or number '$1' not found in SAM database.">&2;tput sgr0;
             exit 1;
     fi;
 }
@@ -1136,7 +1137,7 @@ search_func(){
     #Exist repository in db?
     SAM_INSTALL_REPOS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`
     if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ReposName from $SAM_DB_TABLE_REPOS where ReposName='$SAM_INSTALL_REPOS_NAME'"` ]];then
-        echo -e "\E[31mERROR: Not found default repository in db.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Cannot find default repository in SAM database.">&2;tput sgr0;
         exit 1;
     fi;
     #Reade info from db
@@ -1188,9 +1189,9 @@ search_func(){
 purge_func(){
         local PURGE_LIST_APPS="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId FROM $SAM_DB_TABLE_INSTALL_APPS\"`"
         local CHECK_APP
-        echo -e "Creating image checklist.\n"
+        echo -e "Creating image checklist...\n"
         local CHECKLIST="`docker images -q`"
-        echo -e "\nStarting garbage collect of sam apps.\n";
+        echo -e "\nStarting garbage collection....\n";
         for CHECK_APP in `echo "$CHECKLIST"`
         do
             if [[ -z `echo "$PURGE_LIST_APPS" | grep "$CHECK_APP"` ]];then
@@ -1199,7 +1200,7 @@ purge_func(){
             fi
         done
 
-        echo -e "\E[32mCollecting garbage is complete.";tput sgr0;
+        echo -e "\E[32mCarbage collection is completed.";tput sgr0;
 
 }
 
