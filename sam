@@ -429,7 +429,7 @@ Print application info.
 ";
 
 USAGE_ADDREPO="
-addrepo (ar) [--default] [--name <name>] [--server <hostname>] [--username <username>] [--password <password>] [--email <email>]
+addrepo (ar) --name <name> --server <hostname> [--default] [--username <username>] [--password <password>] [--email <email>]
 
 Add a repository to the system.
 
