@@ -855,7 +855,7 @@ import_func(){
         echo -e "\E[31mERROR: File /etc/os-release doesn't contain variable PRETTY_NAME.">&2;tput sgr0;
         exit 1;
     fi;
-    local OS_EXPORT="`cat $TMPL_DIR/imagelist | head -1 | awk -F '#' '{print $2}'`";
+    local OS_EXPORT="`cat $TMPL_DIR/imagelist | head -1 | grep '^#.*#$' | awk -F '#' '{print $2}'`";
     if [[ -z "$OS_EXPORT" ]];then
         echo -e "\E[31mERROR: Invalid file format.">&2;tput sgr0;
         exit 1;
