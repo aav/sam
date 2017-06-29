@@ -75,7 +75,7 @@ create_tag_app(){
                 echo -e "\E[32mCreating tag '$SAM_APP_LABEL/$2'...";tput sgr0;
                 docker tag $1 $SAM_APP_LABEL/$2;
                 if [[ $? -ne 0 ]]; then
-                    echo -e "\E[31mERROR: Cannot create tag ${SAM_APP_LABEL}/$2 for docker image $1.">&2;tput sgr0;
+                    echo -e "\E[31mERROR: Cannot create tag '${SAM_APP_LABEL}/$2' for docker image $1.">&2;tput sgr0;
                     exit 1;
                 fi;
         else
@@ -136,7 +136,7 @@ check_app_in_db(){
     # This function return exit code 1 if executed conditions
     # exist fullname
     if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND ImageVersion='$3'"` ]];then
-        echo -e "\E[31mERROR: Application $2:$3 already exists in SAM database.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Application '$2:$3' already exists in SAM database.">&2;tput sgr0;
         return 1;
     fi;
     # exist with docker id
@@ -525,7 +525,7 @@ install_func(){
         # Find file "repositories" (check format app)
         CHECK_APP_IN_FILE="`tar -xOf $1 repositories 2>&1`";
         if [[ $? -ne 0 ]]; then
-            echo -e "\E[31mERROR: Invalid file format. File 'repositories' not found in $1 or archive is corrupted..">&2;tput sgr0;
+            echo -e "\E[31mERROR: Invalid file format. File 'repositories' not found in '$1' or archive is corrupted..">&2;tput sgr0;
             exit 1;
         fi;
         if [[ -z "$CHECK_APP_IN_FILE" ]]; then
@@ -612,14 +612,14 @@ install_func(){
 
     create_tag_app $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
     echo;
-    echo -e "\E[32mInstalling app $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION...";tput sgr0;
+    echo -e "\E[32mInstalling app '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION'...";tput sgr0;
     install_app_func $SAM_INSTALL_DOCKER_ID;    
     save_app_in_db $SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID;
     if [[ $? -ne 0 ]]; then
         echo -e "\E[31mERROR: Cannot save '$SAM_INSTALL_DOCKER_ID $SAM_INSTALL_APP $SAM_INSTALL_VERSION $SAM_INSTALL_REPO_ID' in SAM database">&2;tput sgr0;
         exit 1;
     fi;
-    echo -e "\E[32mApplication $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION was successfully installed.";tput sgr0;
+    echo -e "\E[32mApplication '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION' was successfully installed.";tput sgr0;
     echo;
 }
 
@@ -648,7 +648,7 @@ upgrade_func(){
         fi;
     done;
     if [ $I -eq 3 ];then
-        echo -e "\E[31mERROR: Stop upgrading. Url $SAM_URL_UPDATE is bad.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Stop upgrading. Url '$SAM_URL_UPDATE' is bad.">&2;tput sgr0;
         exit 1;
     fi;
 
@@ -672,7 +672,7 @@ remove_func(){
 
     COUNT_APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'" | wc -l`;
     case "$COUNT_APPS_NAME" in
-        "0") echo -e "\E[31mERROR: Application $SAM_REMOVE_NAME not found in SAM database.">&2;tput sgr0;
+        "0") echo -e "\E[31mERROR: Application '$SAM_REMOVE_NAME' not found in SAM database.">&2;tput sgr0;
              exit 1
             ;;
 
@@ -685,7 +685,7 @@ remove_func(){
 
         *) SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`";
            if [[ -z $SAM_REMOVE_VERSION ]];then
-               echo -e "\E[31mERROR: Application $SAM_REMOVE_NAME has several versions.">&2;tput sgr0;
+               echo -e "\E[31mERROR: Application '$SAM_REMOVE_NAME' has several versions.">&2;tput sgr0;
                exit 1
            fi;
           ;;
@@ -693,15 +693,15 @@ remove_func(){
    
     SAM_REMOVE_DOCKER_ID="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME' AND ImageVersion='$SAM_REMOVE_VERSION'\"`";
     if [[ -z "$SAM_REMOVE_DOCKER_ID" || "`echo \"$SAM_REMOVE_DOCKER_ID\" | wc -l`" != "1" ]];then
-        echo -e "\E[31mERROR: Application $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION not found in SAM database.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Application '$SAM_REMOVE_NAME:$SAM_REMOVE_VERSION' not found in SAM database.">&2;tput sgr0;
              exit 1;
     fi;
 
     echo;
-    echo -e "\E[32mRemoving app $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION...";tput sgr0;
+    echo -e "\E[32mRemoving app '$SAM_REMOVE_NAME:$SAM_REMOVE_VERSION'...";tput sgr0;
     uninstall_app_func $SAM_REMOVE_DOCKER_ID;
     delete_app_to_db_func $SAM_REMOVE_DOCKER_ID;
-    echo -e "\E[32mApplication $SAM_REMOVE_NAME:$SAM_REMOVE_VERSION was successfully removed.";tput sgr0;
+    echo -e "\E[32mApplication '$SAM_REMOVE_NAME:$SAM_REMOVE_VERSION' was successfully removed.";tput sgr0;
 }
 
 list_func(){
@@ -737,7 +737,7 @@ info_func(){
 
     SAM_INFO_APP=$1;
     if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"` ]];then
-        echo -e "\E[31mERROR: Application $1 not found in SAM database.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Application '$1' not found in SAM database.">&2;tput sgr0;
         exit 1;
     fi;
     SAM_INFO_DOCKER_ID=`sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"`;
@@ -768,7 +768,7 @@ export_func(){
 
     echo > "$1";
     if [[ $? -ne 0 ]];then
-         echo -e "\E[31mERROR: Cannot create file $1.">&2;tput sgr0;
+         echo -e "\E[31mERROR: Cannot create file '$1'.">&2;tput sgr0;
          exit 1;
     fi;
 
@@ -809,15 +809,15 @@ export_func(){
         echo "Creating images list...";
         echo "#$OS_NAME#" > $TMPL_DIR/imagelist;
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Cannot create export file $TMPL_DIR/imagelist.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot create export file '$TMPL_DIR/imagelist'.">&2;tput sgr0;
             exit 1;
         fi;
         echo "$EXPORT_LIST_APPS" >> $TMPL_DIR/imagelist;
 
-        echo "Creating $1";
+        echo "Creating '$1'";
         (cd $TMPL_DIR && tar cf archive.tar *)
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Cannot create archive $TMPL_DIR/archive.tar.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot create archive '$TMPL_DIR/archive.tar'.">&2;tput sgr0;
             exit 1;
         fi;
         mv $TMPL_DIR/archive.tar "$1";
@@ -829,7 +829,7 @@ export_func(){
         echo "Clear temp directories...";
         rm -rf $TMPL_DIR;
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Cannot remove $TMPL_DIR.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot remove '$TMPL_DIR'.">&2;tput sgr0;
             exit 1;
         fi;
     fi
@@ -838,7 +838,7 @@ export_func(){
 
 import_func(){
     if ! [[ -f "$1" ]];then
-        echo -e "\E[31mERROR: File $1 not found.">&2;tput sgr0;
+        echo -e "\E[31mERROR: File '$1' not found.">&2;tput sgr0;
         exit 1;
     fi;
 
@@ -855,7 +855,7 @@ import_func(){
     #Check OS
     local OS_NAME="`cat /etc/os-release | grep "PRETTY_NAME=" | awk -F '"' '{print $2}'`";
     if [[ -z "$OS_NAME" ]];then
-        echo -e "\E[31mERROR: File /etc/os-release doesn't contain variable PRETTY_NAME.">&2;tput sgr0;
+        echo -e "\E[31mERROR: File '/etc/os-release' doesn't contain variable PRETTY_NAME.">&2;tput sgr0;
         exit 1;
     fi;
     local OS_EXPORT="`cat $TMPL_DIR/imagelist | head -1 | grep '^#.*#$' | awk -F '#' '{print $2}'`";
@@ -885,10 +885,10 @@ import_func(){
         local IMPORT_FILE_NAME;
         for IMPORT_FILE_NAME in `ls -1 $TMPL_DIR | grep -v imagelist`
         do
-            echo -e "\E[32mDocker load image from $TMPL_DIR/$IMPORT_FILE_NAME.\n";tput sgr0;
+            echo -e "\E[32mDocker load image from '$TMPL_DIR/$IMPORT_FILE_NAME'.\n";tput sgr0;
             docker load -i $TMPL_DIR/$IMPORT_FILE_NAME;
             if [[ $? -ne 0 ]];then
-                 echo -e "\E[31mERROR: Cannot load $TMPL_DIR/$IMPORT_FILE_NAME. Import was aborted.">&2;tput sgr0;
+                 echo -e "\E[31mERROR: Cannot load '$TMPL_DIR/$IMPORT_FILE_NAME'. Import was aborted.">&2;tput sgr0;
                  exit 1;
             fi;
         done
@@ -1019,7 +1019,7 @@ import_func(){
             install_app_func $IMPORT_APP_ID;
             save_app_in_db $IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID;
             if [[ $? -ne 0 ]]; then
-                echo -e "\E[31mERROR: '$IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID was not saved in SAM database'">&2;tput sgr0;
+                echo -e "\E[31mERROR: '$IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID' was not saved in SAM database">&2;tput sgr0;
                 exit 1;
             fi;
             echo;
@@ -1029,7 +1029,7 @@ import_func(){
     echo "Clear temp directories";
     rm -rf $TMPL_DIR;
     if [[ $? -ne 0 ]];then
-        echo -e "\E[31mERROR: Cannot remove $TMPL_DIR.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Cannot remove '$TMPL_DIR'.">&2;tput sgr0;
         exit 1;
     fi;
 
