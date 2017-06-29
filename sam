@@ -463,7 +463,7 @@ modifyrepo (mr) <id> [--default] [--name <name>] [--server <hostname>] [--userna
 Modify properties of repositories specified.
 
   Command options:
--d  --default                   Mark the repository as default.
+    --default                   Mark the repository as default.
     --name                      Set a descriptive name for the repository.
     --server                    Set a server name to docker-registry.
     --username                  Set the user name for authentication to the server.
