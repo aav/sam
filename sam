@@ -791,10 +791,14 @@ export_func(){
 
             local FPostfix=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | awk -F '.' ' {print $NF}  '`;
             local CKSUM=`cksum "$TMPL_DIR/$EXPORT_FILE_NAME" | awk ' {print $1$2} '`;
+            if [[ $? -ne 0 ]];then
+                echo -e "\E[31mERROR: Cannot count checksum archive '$TMPL_DIR/$EXPORT_FILE_NAME'.">&2;tput sgr0;
+                exit 1;
+            fi;
             local NewName=`echo "$TMPL_DIR/$EXPORT_FILE_NAME" | sed s#$FPostfix#.$CKSUM.$FPostfix#g`;
             mv $TMPL_DIR/$EXPORT_FILE_NAME $NewName;
             if [[ $? -ne 0 ]];then
-                echo -e "\E[31mERROR: Cannot count checksum archive.">&2;tput sgr0;
+                echo -e "\E[31mERROR: Cannot create file '$NewName'.">&2;tput sgr0;
                 exit 1;
             fi;
         done;
