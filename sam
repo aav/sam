@@ -284,7 +284,7 @@ convert_with_multiversion(){
         fi;
         sqlite3 $SAM_DB_SQLITE "UPDATE $SAM_DB_TABLE_INSTALL_APPS SET MultiVersion='$LABEL_MULTIVERSION' WHERE DockerId='$APPS_ID'";
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Can't add label to column MultiVersion in db.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot add label to column MultiVersion in db.">&2;tput sgr0;
         fi;
     done;
 }
@@ -295,7 +295,7 @@ if [[ $? -ne 0 ]];then
      echo "Creating column MultiVersion to $SAM_DB_TABLE_INSTALL_APPS.";
      sqlite3 $SAM_DB_SQLITE "ALTER TABLE $SAM_DB_TABLE_INSTALL_APPS ADD COLUMN MultiVersion TEXT";
      if [[ $? -ne 0 ]];then
-         echo -e "\E[31mERROR: Can't create column MultiVersion in db.">&2;tput sgr0;
+         echo -e "\E[31mERROR: Cannot create column MultiVersion in db.">&2;tput sgr0;
          exit 1;
      fi;
 
@@ -324,7 +324,7 @@ convert_with_family(){
         fi;
         sqlite3 $SAM_DB_SQLITE "UPDATE $SAM_DB_TABLE_INSTALL_APPS SET Family='$LABEL_FAMILY' WHERE DockerId='$APPS_ID'";
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Can't add label to column Family in db.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot add label to column Family in db.">&2;tput sgr0;
         fi;
     done;
 }
@@ -335,7 +335,7 @@ if [[ $? -ne 0 ]];then
      echo "Creating column Family to $SAM_DB_TABLE_INSTALL_APPS.";
      sqlite3 $SAM_DB_SQLITE "ALTER TABLE $SAM_DB_TABLE_INSTALL_APPS ADD COLUMN Family TEXT";
      if [[ $? -ne 0 ]];then
-         echo -e "\E[31mERROR: Can't create column Family in db.">&2;tput sgr0;
+         echo -e "\E[31mERROR: Cannot create column Family in db.">&2;tput sgr0;
          exit 1;
      fi;
 
