@@ -588,7 +588,7 @@ install_func(){
         # pull app
         docker pull $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION;
         if [[ $? -ne 0 ]]; then
-            echo -e "\E[31mERROR: Cannot download $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION.">&2;tput sgr0;
+            echo -e "\E[33mWARN: Cannot download $SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION.">&2;tput sgr0;
             echo "Trying to find application locally...";
             SAM_INSTALL_REPO_ID='';
         fi;
