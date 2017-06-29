@@ -155,7 +155,7 @@ check_app_in_db(){
     if [[ "$LABEL_MULTIVERSION" == "supported" ]];then
         # and if name exist in db among without multiversion
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2' AND MultiVersion=''"` ]];then
-            echo -e "\E[31mERROR: Application with name \"$2\" already exists in SAM database.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Application with name '$2' already exists in SAM database.">&2;tput sgr0;
             return 1;
         fi;
         # and if family exist in db among without multiversion
@@ -167,7 +167,7 @@ check_app_in_db(){
     # if app doesn't have label multiversion
         # and if name exist in db
         if [[ -n `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$2'"` ]];then
-            echo -e "\E[31mERROR: Application with name \"$2\" already existis in SAM database.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Application with name '$2' already existis in SAM database.">&2;tput sgr0;
             return 1;
         fi;
         # and if family exist in db
@@ -228,7 +228,7 @@ fi
 
 # Exist BIN_DIR in path ?
 if [[ -z `echo $PATH | grep $BIN_DIR` ]]; then
-        echo -e "\E[31mERROR: Path \"$BIN_DIR\" not found in variable \$PATH. You must add $BIN_DIR to \$PATH.">&2;tput sgr0;
+        echo -e "\E[31mERROR: Path '$BIN_DIR' not found in variable \$PATH. You must add '$BIN_DIR' to \$PATH.">&2;tput sgr0;
         exit 1;
 fi;
 
