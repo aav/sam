@@ -434,12 +434,12 @@ addrepo (ar) --name <name> --server <hostname> [--default] [--username <username
 Add a repository to the system.
 
   Command options:
-    --default                   Add the repository as default.
-    --name                      Add a descriptive repository name.
-    --server                    Add a remote repository hostname.
-    --username                  Optional. Add the user name for authentication.
-    --password                  Optional. Add the password for authentication.
-    --email                     Optional. Add the email for authentication.
+    --name                      Repository name. Use only to manage this repository.
+    --server                    IP-address or hostname of the remote repository.
+    --default                   Use this repository as default repository. It means that you can ommit repository name in sam install command.
+    --username                  Username to log on the remote repository.
+    --password                  Password to log on the remote repository.
+    --email                     Email to log on the remote repository.
 
 ";
 
@@ -464,11 +464,11 @@ Modify properties of repositories specified.
 
   Command options:
     --default                   Mark the repository as default.
-    --name                      Set a descriptive name for the repository.
-    --server                    Set a server name to docker-registry.
-    --username                  Set the user name for authentication to the server.
-    --password                  Set the password for authentication to the server.
-    --email                     Set the email for authentication to the server. 
+    --name                      New name of the repository.
+    --server                    New IP-address or new hostname of the repository.
+    --username                  New username to log on the remote repository.
+    --password                  New password to log on the remote repository.
+    --email                     New email to log on the remote repository.
 
 ";
 
