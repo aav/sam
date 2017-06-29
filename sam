@@ -368,7 +368,6 @@ USAGE="
         list                    List installed applications.
         search, se              Search image version in remote repository.
         info                    Print application info.
-        upgrade, up             Upgrade Smilart Os.
      
         export, ex              Export images list or archive.
         import, im              Import images list or archive.
@@ -388,13 +387,6 @@ install (in) <app>:<version>
 install (in) <filename>
 
 Install smilart application with specified capabilities from repository or from gzip/tar archive.
-
-";
-
-USAGE_UPGRADE="
-upgrade (up) <url>
-
-Update Core OS with the update engine client.
 
 ";
 
@@ -621,45 +613,6 @@ install_func(){
     fi;
     echo -e "\E[32mApplication '$SAM_PREFIX_IMAGE_DOCKER/$SAM_INSTALL_APP:$SAM_INSTALL_VERSION' was successfully installed.";tput sgr0;
     echo;
-}
-
-upgrade_func(){
-    local PATH_UPDATE_SMILARTOS='/etc/coreos/update.conf';
-    local SAM_URL_UPDATE;
-    local I;
-
-    if [ -e $1 ];then
-        SAM_URL_UPDATE="http://localhost:8002/";
-    else
-        SAM_URL_UPDATE="$1"; 
-    fi;
-
-    #Test url
-    I=0;
-    while [ $I -lt 3 ]; do
-        I=$[$I+1];
-        curl "$SAM_URL_UPDATE" > /dev/null 2>&1;
-        if [ $? -ne 0 ];then
-            echo -e "\E[33mWARN: Server update is not available. Reconnect after 3 seconds..";tput sgr0;
-            sleep 3;
-            continue;
-        else
-            break;
-        fi;
-    done;
-    if [ $I -eq 3 ];then
-        echo -e "\E[31mERROR: Stop upgrading. Url '$SAM_URL_UPDATE' is bad.">&2;tput sgr0;
-        exit 1;
-    fi;
-
-    #Configure update-engine
-    echo "GROUP=stable
-REBOOT_STRATEGY=off
-SERVER=$SAM_URL_UPDATE" > $PATH_UPDATE_SMILARTOS;
-    #Restarting update-engine
-    sudo systemctl restart update-engine;
-    #Start update
-    update_engine_client -update;
 }
 
 remove_func(){
@@ -1209,10 +1162,6 @@ help_func(){
             echo "$USAGE_INSTALL";
             exit 0
             ;;
-        upgrade|up)
-            echo "$USAGE_UPGRADE";
-            exit 0
-            ;;
         remove|rm)
             echo "$USAGE_REMOVE";
             exit 0
@@ -1391,11 +1340,6 @@ while true ; do
                 remove|rm)
                     shift;
                     remove_func $1;
-                    exit 0
-                    ;;
-                upgrade|up)
-                    shift;
-                    upgrade_func $1;
                     exit 0
                     ;;
                 info)
