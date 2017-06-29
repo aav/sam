@@ -110,9 +110,6 @@ fi;
 
 connect_func $@;' > $BIN_DIR/connect;
         chmod +x $BIN_DIR/connect;
-        if [[ -z `id smilart 2>&1 | grep 'no such user'` ]]; then
-             chown smilart $BIN_DIR/connect;
-        fi;
 }
 
 # save_app_in_db <DockerId> <ImageName> <ImageVersion> <ImageRepos NUMBER>
