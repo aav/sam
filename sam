@@ -380,7 +380,7 @@ USAGE="
 ";
 
 USAGE_INSTALL="
-install (in) <app>:<version>
+install (in) [<repos>/]<app>:<version>
 install (in) <filename>
 
 Install smilart application with specified capabilities from repository or from gzip/tar archive.
