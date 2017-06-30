@@ -666,7 +666,11 @@ if [ -z "$GETOPT_RAW" ];then
         echo;
         fi;
 else
-        sqlite3 $SAM_DB_SQLITE "SELECT ImageName,ImageVersion,ImageRepos,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END FROM $SAM_DB_TABLE_INSTALL_APPS";
+        if [[ -z "$GETOPT_LABELS" ]];then
+            sqlite3 $SAM_DB_SQLITE "SELECT ImageName,ImageVersion,ImageRepos,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END FROM $SAM_DB_TABLE_INSTALL_APPS";
+        else
+            sqlite3 $SAM_DB_SQLITE "SELECT ImageName,ImageVersion,ImageRepos,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END,Family,MultiVersion FROM $SAM_DB_TABLE_INSTALL_APPS";
+        fi;
 fi;
 }
 
