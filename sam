@@ -1129,7 +1129,7 @@ purge_func(){
         local PURGE_LIST_APPS="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId FROM $SAM_DB_TABLE_INSTALL_APPS\"`"
         local CHECK_APP
         echo -e "Creating image checklist...\n"
-        local CHECKLIST="`docker images -q`"
+        local CHECKLIST="`docker images --filter 'label=com.smilart.repo_base_name=smilart' -q`"
         echo -e "\nStarting garbage collection....\n";
         for CHECK_APP in `echo "$CHECKLIST"`
         do
