@@ -451,7 +451,7 @@ List all installed Smilart applications.
 ";
 
 USAGE_INFO="
-info <name>
+info <name>[:<version>]
 
 Print application info.
 
