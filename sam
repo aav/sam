@@ -972,12 +972,15 @@ import_func(){
             IMPORT_APP_ID="`echo $IMPORT_APP_ADD | awk -F '|' '{print $2}'`";
             IMPORT_APP_REPO_ID="`echo $IMPORT_APP_ADD | awk -F '|' '{print $3}'`";
 
+            echo;
+            echo -e "\E[32mInstalling application '$IMPORT_APP_NAME:$IMPORT_APP_VERSION'...";tput sgr0;
             install_app_func $IMPORT_APP_ID;
             save_app_in_db $IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID;
             if [[ $? -ne 0 ]]; then
                 echo -e "\E[31mERROR: '$IMPORT_APP_ID $IMPORT_APP_NAME $IMPORT_APP_VERSION $IMPORT_APP_REPO_ID' was not saved in SAM database">&2;tput sgr0;
                 exit 1;
             fi;
+            echo -e "\E[32mApplication '$IMPORT_APP_NAME:$IMPORT_APP_VERSION' was successfully installed.";tput sgr0;
             echo;
         done;
     fi;
