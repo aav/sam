@@ -199,6 +199,43 @@ pull_image_from_repo(){
     fi;
 }
 
+# get_id_for_app <app_name>:<app_version>|<app_name> <file_temp>
+# Input: name apps and maybe version if exist several names in db, tmp file with docker id
+get_id_for_app_func(){
+    local APP_NAME="`echo $1 | awk -F ':' '{print $1}'`";
+    local APP_VERSION;
+    local APP_DOCKER_ID;
+    local COUNT_APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$APP_NAME'" | wc -l`;
+
+    case "$COUNT_APPS_NAME" in
+        "0") echo -e "\E[31mERROR: Application '$1' not found in SAM database.";tput sgr0;
+             exit 1
+            ;;
+
+        "1") if [[ -z "`echo $1 | grep ':'`" ]];then
+                 APP_VERSION=`sqlite3 $SAM_DB_SQLITE "SELECT ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$APP_NAME'"`;
+             else
+                 APP_VERSION="`echo $1 | awk -F ':' '{print $2}'`";
+             fi;   
+            ;;
+    
+        *) APP_VERSION="`echo $1 | awk -F ':' '{print $2}'`";
+           if [[ -z $APP_VERSION ]];then
+               echo -e "\E[31mERROR: Application '$APP_NAME' has several versions.";tput sgr0;
+               exit 1
+           fi;
+          ;;
+    esac
+    
+    APP_DOCKER_ID="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$APP_NAME' AND ImageVersion='$APP_VERSION'\"`";
+    if [[ -z "$APP_DOCKER_ID" || "`echo \"$APP_DOCKER_ID\" | wc -l`" != "1" ]];then
+        echo -e "\E[31mERROR: Application '$APP_NAME:$APP_VERSION' not found in SAM database.";tput sgr0;
+             exit 1;
+    fi;
+
+    echo "$APP_DOCKER_ID" > $2;
+}
+
 ## Testing
 #
 if [[ ! -d /var/db/sam ]];then
@@ -604,39 +641,15 @@ install_func(){
 }
 
 remove_func(){
-    local SAM_REMOVE_NAME;
-    local COUNT_APPS_NAME;
-    local SAM_REMOVE_VERSION;
     local SAM_REMOVE_DOCKER_ID;
 
-    SAM_REMOVE_NAME="`echo $1 | awk -F ':' '{print $1}'`";
+    local MKTEMP=$(mktemp);
+    get_id_for_app_func $1 $MKTEMP
+    SAM_REMOVE_DOCKER_ID="`cat $MKTEMP`"
+    rm -f $MKTEMP;
 
-    COUNT_APPS_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'" | wc -l`;
-    case "$COUNT_APPS_NAME" in
-        "0") echo -e "\E[31mERROR: Application '$SAM_REMOVE_NAME' not found in SAM database.">&2;tput sgr0;
-             exit 1
-            ;;
-
-        "1") if [[ -z "`echo $1 | grep ':'`" ]];then
-                 SAM_REMOVE_VERSION=`sqlite3 $SAM_DB_SQLITE "SELECT ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME'"`;
-             else
-                 SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`";
-             fi;   
-            ;;
-
-        *) SAM_REMOVE_VERSION="`echo $1 | awk -F ':' '{print $2}'`";
-           if [[ -z $SAM_REMOVE_VERSION ]];then
-               echo -e "\E[31mERROR: Application '$SAM_REMOVE_NAME' has several versions.">&2;tput sgr0;
-               exit 1
-           fi;
-          ;;
-    esac
-   
-    SAM_REMOVE_DOCKER_ID="`sqlite3 $SAM_DB_SQLITE \"SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_REMOVE_NAME' AND ImageVersion='$SAM_REMOVE_VERSION'\"`";
-    if [[ -z "$SAM_REMOVE_DOCKER_ID" || "`echo \"$SAM_REMOVE_DOCKER_ID\" | wc -l`" != "1" ]];then
-        echo -e "\E[31mERROR: Application '$SAM_REMOVE_NAME:$SAM_REMOVE_VERSION' not found in SAM database.">&2;tput sgr0;
-             exit 1;
-    fi;
+    local SAM_REMOVE_NAME=`sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$SAM_REMOVE_DOCKER_ID'"`
+    local SAM_REMOVE_VERSION=`sqlite3 $SAM_DB_SQLITE "SELECT ImageVersion from $SAM_DB_TABLE_INSTALL_APPS where DockerId='$SAM_REMOVE_DOCKER_ID'"`;
 
     echo;
     echo -e "\E[32mRemoving application '$SAM_REMOVE_NAME:$SAM_REMOVE_VERSION'...";tput sgr0;
@@ -677,15 +690,13 @@ fi;
 info_func(){
 
     local TEMPLATE_DIR;
-    local SAM_INFO_APP;
     local SAM_INFO_DOCKER_ID;
 
-    SAM_INFO_APP=$1;
-    if [[ -z `sqlite3 $SAM_DB_SQLITE "SELECT ImageName from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"` ]];then
-        echo -e "\E[31mERROR: Application '$1' not found in SAM database.">&2;tput sgr0;
-        exit 1;
-    fi;
-    SAM_INFO_DOCKER_ID=`sqlite3 $SAM_DB_SQLITE "SELECT DockerId from $SAM_DB_TABLE_INSTALL_APPS where ImageName='$SAM_INFO_APP'"`;
+    local MKTEMP=$(mktemp);
+    get_id_for_app_func $1 $MKTEMP
+    SAM_INFO_DOCKER_ID="`cat $MKTEMP`"
+    rm -f $MKTEMP;
+
     copy_meta_func $SAM_INFO_DOCKER_ID;
     pwd=$PWD;
     cd $TEMPLATE_DIR/meta;

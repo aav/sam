@@ -7,17 +7,17 @@
         --help, -h              Help.
         --debug, -x             Debug mode.
 
+
   Commands:
         help                    Print help.
 
      Software Management:
         install, in             Install applications.
         remove, rm              Remove applications.
-        purge                   Cleare images of the docker not registered in sam.
+        purge                   Clear docker images isn't registered in SAM database.
         list                    List installed applications.
-        search, se              Search image version on private registry.
+        search, se              Search image version in remote repository.
         info                    Print application info.
-        upgrade, up             Upgrade Smilart Os.
      
         export, ex              Export images list or archive.
         import, im              Import images list or archive.
@@ -28,14 +28,13 @@
         modifyrepo, mr          Modify specified repository.
         listrepos, lr           List all defined repositories.
 
-
 # Building .deb package #
 
 Command for building to ubuntu:
      BUILD_NUMBER=0 ./deb-builder.sh 
 
 Result:
-     sam-<version>.deb
+     sam-\<version\>.deb
 
 Variable BUILD_NUMBER is needed for jenkins. Default: SNAPSHOT
 
