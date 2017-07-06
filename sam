@@ -674,9 +674,9 @@ if [ -z "$GETOPT_RAW" ];then
         echo;
         # Print repository
         if [[ -z "$GETOPT_LABELS" ]];then
-            LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository FROM $SAM_DB_TABLE_INSTALL_APPS"`;
+            LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository FROM $SAM_DB_TABLE_INSTALL_APPS ORDER BY ImageName"`;
         else
-            LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository,Family,MultiVersion as M FROM $SAM_DB_TABLE_INSTALL_APPS"`;
+            LIST_APPS=`sqlite3 -header $SAM_DB_SQLITE "SELECT ImageName as Name,ImageVersion as Version,CASE ImageRepos WHEN null THEN 'unknown' WHEN 0 THEN 'archive' ELSE (SELECT ReposName FROM $SAM_DB_TABLE_REPOS WHERE ImageRepos=Repos.Id) END as Repository,Family,MultiVersion as M FROM $SAM_DB_TABLE_INSTALL_APPS ORDER BY ImageName"`;
         fi;
         if [[ -n $LIST_APPS ]];then
             LIST_APPS_MAX_LINE=`echo "$LIST_APPS" | sed 's/|/#|  /g' | column -t -s '#' | wc -L`;
