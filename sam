@@ -382,6 +382,11 @@ if [[ $? -ne 0 ]];then
      convert_with_family;
 fi;
 
+#Exist history?
+if [ ! -f $SAM_HISTORY ];then
+    touch $SAM_HISTORY;
+fi;
+
 ## Help section
 USAGE="
   Usage:
