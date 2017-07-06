@@ -13,6 +13,9 @@ rm -rf ${PACKAGE_HOME}
 mkdir -p ${PACKAGE_HOME}/usr/sbin
 cp -f ./sam ${PACKAGE_HOME}/usr/sbin/sam
 
+mkdir -p ${PACKAGE_HOME}/etc/bash_completion.d
+cp -f ./bash_complete ${PACKAGE_HOME}/etc/bash_completion.d/sam
+
 mkdir ${PACKAGE_HOME}/DEBIAN
 
 echo "Package: sam
@@ -42,7 +45,6 @@ if [[ -z `cat /root/.bashrc | grep -v "^#" | grep "PATH.*/opt/bin"` ]];then
     echo -e -n "\n\E[33mWARN: Relogin to shell to run the utility.\n";tput sgr0;
     echo PATH=\$PATH:/opt/bin >> /root/.bashrc
 fi;
-
 ' > ${PACKAGE_HOME}/DEBIAN/postinst
 chmod +x ${PACKAGE_HOME}/DEBIAN/postinst
 
