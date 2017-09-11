@@ -776,10 +776,11 @@ save_func(){
 
   mkdir -p $SAVE_PATH_DIR >/dev/null 2>&1;
   if [[ $? -ne 0 ]];then
-      echo -e "\E[31mERROR: Cannot create directory '$SAVE_PATH_DIR'.">&2;tput sgr0;
+      echo -e "\E[31mERROR: Cannot create directory '$SAVE_PATH_DIR'.\n">&2;tput sgr0;
       exit 1;
   fi;
 
+   echo "Saving image to archive...";
   local SAM_APP_LABEL=`docker inspect $SAVE_APP_ID | grep -m 1 com.smilart.repo_base_name | awk -F '"'  '{print $4}'`
   docker save $SAM_APP_LABEL/$SAVE_APP_NAME:$SAVE_APP_VERSION | gzip > $SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION.gz
   if [[ $? -ne 0 ]];then
@@ -794,7 +795,8 @@ save_func(){
       echo -e "\E[31mERROR: Cannot write file $SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION..$SAVE_CHECKSUM.gz">&2;tput sgr0;
       exit 1;
   fi;
- 
+
+  echo
   echo -e "\E[32mComplete. Save $SAVE_APP_NAME:$SAVE_APP_VERSION to $SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION..$SAVE_CHECKSUM.gz";tput sgr0;
 }
 
