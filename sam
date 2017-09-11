@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #set -vx
-SAM_VERSION='1.13';
+SAM_VERSION='1.14';
 
 #Configuring
 BIN_DIR=${BIN_DIR:-/opt/bin}
@@ -407,7 +407,8 @@ USAGE="
         list                    List installed applications.
         search, se              Search image version in remote repository.
         info                    Print application info.
-     
+
+        save                    Save image to archive.
         export, ex              Export images list or archive.
         import, im              Import images list or archive.
 
@@ -459,6 +460,16 @@ USAGE_INFO="
 info <name>[:<version>]
 
 Print application info.
+
+";
+
+USAGE_SAVE="
+save [<repos>/]<image_name>:<image_version> [options]
+
+Save application to archive.
+
+  Command options:
+    --dir                       Path for work directory with the archive.
 
 ";
 
@@ -713,6 +724,78 @@ info_func(){
     cd $pwd;
     rm -rf $TEMPLATE_DIR;
     echo;
+}
+
+save_func(){
+  local SAVE_APP_NAME=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $1}'`
+  local SAVE_APP_VERSION=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'`
+  local PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
+  local SAVE_APP_ID
+
+  if [[ -z $SAVE_APP_NAME || -z $SAVE_APP_VERSION ]];then
+      echo -e "\E[31mERROR: Cannot parsing parameter '$1' in the command.">&2;tput sgr0;
+      exit 1;
+  fi;
+
+  # pull image
+  echo;
+
+  if [[ -n $SAVE_APP_REPO ]];then
+	local PREFIX_IMAGE_DOCKER=`echo "$1" | awk -F '/' '{print $1}'`;
+        docker pull $1
+	if [[ $? -ne 0 ]];then
+            echo -e "\E[33mWARN: Cannot pull '$1' from SAM repository.">&2;tput sgr0;
+            echo "Trying to find application locally...";
+        fi;
+  else
+	local PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
+        pull_image_from_repo $SAVE_APP_NAME $SAVE_APP_VERSION;
+        if [[ $? -ne 0 ]];then
+            echo -e "\E[33mWARN: Cannot pull '$SAVE_APP_NAME:$SAVE_APP_VERSION' from default SAM repository.">&2;tput sgr0;
+	    echo "Trying to find application locally...";
+        fi;
+        docker logout 2>&1 > /dev/null;
+  fi;
+
+  # check image
+  local SAVE_APP_ID=`docker images | grep -v 'REPOSITORY' | awk -F ' ' ' {print $1,$2,$3} ' | sed "s/ /:/g" | grep "$PREFIX_IMAGE_DOCKER/$SAVE_APP_NAME:$SAVE_APP_VERSION:" | awk -F ':' '{print $NF}'`;
+  if [[ -z $SAVE_APP_ID ]];then
+      echo -e "\E[31mERROR: Applications '$SAVE_APP_NAME:$SAVE_APP_VERSION' not found locally.">&2;tput sgr0;
+      exit 1;
+  else
+      create_tag_app $SAVE_APP_ID $SAVE_APP_NAME:$SAVE_APP_VERSION;
+  fi;
+ 
+  # save to archive
+  local SAVE_PATH_DIR
+  if [[ -z "$GETOPT_DIR" ]];then
+      SAVE_PATH_DIR=`pwd`;
+  else
+      SAVE_PATH_DIR="$GETOPT_DIR";
+  fi;
+
+  mkdir -p $SAVE_PATH_DIR >/dev/null 2>&1;
+  if [[ $? -ne 0 ]];then
+      echo -e "\E[31mERROR: Cannot create directory '$SAVE_PATH_DIR'.">&2;tput sgr0;
+      exit 1;
+  fi;
+
+  local SAM_APP_LABEL=`docker inspect $SAVE_APP_ID | grep -m 1 com.smilart.repo_base_name | awk -F '"'  '{print $4}'`
+  docker save $SAM_APP_LABEL/$SAVE_APP_NAME:$SAVE_APP_VERSION | gzip > $SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION.gz
+  if [[ $? -ne 0 ]];then
+      echo -e "\E[31mERROR: Cannot save image $SAM_APP_LABEL/$SAVE_APP_NAME:$SAVE_APP_VERSION.">&2;tput sgr0;
+      exit 1;
+  fi;
+
+  # cksum arcive
+  local SAVE_CHECKSUM=`cksum "$SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION.gz" | awk ' {print $1$2} '`
+  mv $SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION.gz $SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION..$SAVE_CHECKSUM.gz
+  if [[ $? -ne 0 ]]; then
+      echo -e "\E[31mERROR: Cannot write file $SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION..$SAVE_CHECKSUM.gz">&2;tput sgr0;
+      exit 1;
+  fi;
+ 
+  echo -e "\E[32mComplete. Save $SAVE_APP_NAME:$SAVE_APP_VERSION to $SAVE_PATH_DIR/$SAVE_APP_NAME-$SAVE_APP_VERSION..$SAVE_CHECKSUM.gz";tput sgr0;
 }
 
 export_func(){
@@ -1200,6 +1283,10 @@ help_func(){
             echo "$USAGE_MODIFYREPO";
             exit 0
             ;;
+	save)
+	    echo "$USAGE_SAVE";
+	    exit 0
+	    ;;
         export|ex)
             echo "$USAGE_EXPORT";
             exit 0
@@ -1224,7 +1311,7 @@ help_func(){
 }
 
 ###Case section
-SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,all,labels,restore --name "sam" -- "$@"`
+SAM_ARGUMENT=`getopt -o h:x --long help:,debug,raw,default,name:,server:,username:,password:,all,labels,restore,dir: --name "sam" -- "$@"`
 eval set -- "$SAM_ARGUMENT";
 unset SAM_ARGUMENT;
 unset GETOPT_RAW;
@@ -1236,6 +1323,7 @@ unset GETOPT_PASSWORD;
 unset GETOPT_ALL;
 unset GETOPT_LABELS;
 unset GETOPT_RESTORE;
+unset GETOPT_DIR;
 
 while true ; do
     case "$1" in
@@ -1283,6 +1371,10 @@ while true ; do
         --restore)
             GETOPT_RESTORE='true';
             shift
+            ;;
+	--dir)
+            GETOPT_DIR=$2;
+            shift 2
             ;;
         --)
             shift;
@@ -1350,6 +1442,11 @@ while true ; do
                 info)
                     shift;
                     info_func $1;
+                    exit 0
+                    ;;
+		save)
+                    shift;
+                    save_func $1;
                     exit 0
                     ;;
             esac
