@@ -1198,12 +1198,19 @@ search_func(){
     #Get version images to repository
     CURRENT_IMAGE='';
     CURRENT_VERSION='';
+
+    curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s 2>&1 >/dev/null
+    if [[ $? -ne 0 ]];then
+        echo -e "\E[31mERROR: Cannot get data from Sam default repository.">&2;tput sgr0;
+        exit 1;
+    fi;
+
+    LIST_IMAGES="`curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed 's/,/,\n/g' | awk -F '"' '{print $2}'`"
+
     echo > $SAM_HISTORY;
     echo;
     echo "      List image versions:";
     echo;
-
-    LIST_IMAGES="`curl https://$SAM_INSTALL_REPOS_URL/v2/_catalog -s | awk -F '[' '{print $NF}' | awk -F ']' '{print $1}' | sed 's/,/,\n/g' | awk -F '"' '{print $2}'`"
 
     for CURRENT_IMAGE in `echo "$LIST_IMAGES"`
     do
