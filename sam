@@ -729,7 +729,7 @@ info_func(){
 save_func(){
   local SAVE_APP_NAME=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $1}'`
   local SAVE_APP_VERSION=`echo "$1" | awk -F '/' '{print $NF}' | awk -F ':' '{print $2}'`
-  local PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
+  local PREFIX_IMAGE_DOCKER=`echo "$1" | grep "/" | awk -F '/' '{print $1}'`
   local SAVE_APP_ID
 
   if [[ -z $SAVE_APP_NAME || -z $SAVE_APP_VERSION ]];then
@@ -740,15 +740,14 @@ save_func(){
   # pull image
   echo;
 
-  if [[ -n $SAVE_APP_REPO ]];then
-	local PREFIX_IMAGE_DOCKER=`echo "$1" | awk -F '/' '{print $1}'`;
+  if [[ -n $PREFIX_IMAGE_DOCKER ]];then
         docker pull $1
 	if [[ $? -ne 0 ]];then
             echo -e "\E[33mWARN: Cannot pull '$1' from SAM repository.">&2;tput sgr0;
             echo "Trying to find application locally...";
         fi;
   else
-	local PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
+	PREFIX_IMAGE_DOCKER=`sqlite3 $SAM_DB_SQLITE "SELECT ReposUrl from $SAM_DB_TABLE_REPOS where ReposFlag='*'" | sed 's/\/$//' | awk -F '/' '{print $NF}'`;
         pull_image_from_repo $SAVE_APP_NAME $SAVE_APP_VERSION;
         if [[ $? -ne 0 ]];then
             echo -e "\E[33mWARN: Cannot pull '$SAVE_APP_NAME:$SAVE_APP_VERSION' from default SAM repository.">&2;tput sgr0;
