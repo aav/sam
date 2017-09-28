@@ -823,8 +823,24 @@ export_func(){
         echo "$EXPORT_LIST_APPS" >> $1;
 
     else
-        local TMPL_DIR=`mktemp -d`;
-        echo "Creating tmp directory $TMPL_DIR"...;
+        local WORK_DIR=`dirname $(readlink -f $1)`
+        if [[ -z $WORK_DIR ]];then
+            echo -e "\E[31mERROR: Not found work-directory for file $1.">&2;tput sgr0;
+            exit 1;
+        fi;
+
+        local TMPL_DIR=`mktemp -d -p $WORK_DIR`;
+        echo "Created tmp directory $TMPL_DIR.";
+
+        #Remove tmp for exit sam
+        trap '\
+        if [[ -d $TMPL_DIR ]];then \
+            rm -rf $TMPL_DIR; \
+            if [[ $? -ne 0 ]];then \
+                echo -e "\E[31mERROR: Cannot remove $TMPL_DIR.">&2;tput sgr0; \
+                exit 1; \
+            fi; \
+        fi;' EXIT HUP INT QUIT PIPE TERM
 
         echo "Saving applications to gzip archive:"
         for EXPORT_APP in `echo "$EXPORT_LIST_APPS"`
@@ -859,7 +875,7 @@ export_func(){
         fi;
         echo "$EXPORT_LIST_APPS" >> $TMPL_DIR/imagelist;
 
-        echo "Creating '$1'";
+        echo "Creating tar archive '$1'";
         (cd $TMPL_DIR && tar cf archive.tar *)
         if [[ $? -ne 0 ]];then
             echo -e "\E[31mERROR: Cannot create archive '$TMPL_DIR/archive.tar'.">&2;tput sgr0;
@@ -871,12 +887,13 @@ export_func(){
             exit 1;
         fi;
 
-        echo "Clear temp directories...";
+        echo "Removing tmp directory $TMPL_DIR...";
         rm -rf $TMPL_DIR;
         if [[ $? -ne 0 ]];then
-            echo -e "\E[31mERROR: Cannot remove '$TMPL_DIR'.">&2;tput sgr0;
+            echo -e "\E[31mERROR: Cannot remove $TMPL_DIR.">&2;tput sgr0;
             exit 1;
         fi;
+
     fi
     echo -e "\E[32mComplete. Export result is saved to '$1'.";tput sgr0;
 }
@@ -887,8 +904,25 @@ import_func(){
         exit 1;
     fi;
 
+    local WORK_DIR=`dirname $(readlink -f $1)`
+    if [[ -z $WORK_DIR ]];then
+        echo -e "\E[31mERROR: Not found work-directory for file $1.">&2;tput sgr0;
+        exit 1;
+    fi;
+    local TMPL_DIR=`mktemp -d -p $WORK_DIR`;
+    echo "Created tmp directory $TMPL_DIR.";
+
+    #Remove tmp for exit sam
+    trap '\
+    if [[ -d $TMPL_DIR ]];then \
+        rm -rf $TMPL_DIR; \
+        if [[ $? -ne 0 ]];then \
+            echo -e "\E[31mERROR: Cannot remove $TMPL_DIR.">&2;tput sgr0; \
+            exit 1; \
+        fi; \
+    fi;' EXIT HUP INT QUIT PIPE TERM
+
     # Is it file or archive?
-    local TMPL_DIR=`mktemp -d`;
     tar xf $1 -C $TMPL_DIR/ > /dev/null 2>&1;
     if [[ $? -ne 0 ]];then
         cp -f $1 $TMPL_DIR/imagelist;
@@ -919,13 +953,19 @@ import_func(){
                           echo
                           ;;
                         *)
+                          
+                          echo "Removing tmp directory $TMPL_DIR...";
                           rm -rf $TMPL_DIR;
+                          if [[ $? -ne 0 ]];then
+                              echo -e "\E[31mERROR: Cannot remove '$TMPL_DIR'.">&2;tput sgr0;
+                              exit 1;
+                          fi;
                           exit 0
                           ;;
                     esac
     fi;
 
-    #If achive - load apps
+    #If achive - load apps from archive
     if [[ $IMPORT_SOURCE == archive ]];then
         local IMPORT_FILE_NAME;
         for IMPORT_FILE_NAME in `ls -1 $TMPL_DIR | grep -v imagelist`
@@ -1037,7 +1077,12 @@ import_func(){
                   echo
                   ;;
               *)
+                  echo "Removing tmp directory $TMPL_DIR...";
                   rm -rf $TMPL_DIR;
+                  if [[ $? -ne 0 ]];then
+                      echo -e "\E[31mERROR: Cannot remove '$TMPL_DIR'.">&2;tput sgr0;
+                      exit 1;
+                  fi;
                   exit 0
               ;;
          esac
@@ -1074,7 +1119,7 @@ import_func(){
         done;
     fi;
 
-    echo "Clear temp directories";
+    echo "Removing tmp directory $TMPL_DIR...";
     rm -rf $TMPL_DIR;
     if [[ $? -ne 0 ]];then
         echo -e "\E[31mERROR: Cannot remove '$TMPL_DIR'.">&2;tput sgr0;
