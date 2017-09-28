@@ -953,7 +953,7 @@ import_func(){
                           echo
                           ;;
                         *)
-                          
+
                           echo "Removing tmp directory $TMPL_DIR...";
                           rm -rf $TMPL_DIR;
                           if [[ $? -ne 0 ]];then
@@ -1316,7 +1316,7 @@ help_func(){
             echo "$USAGE_LIST";
             exit 0
             ;;
-	purge)
+        purge)
             echo "$USAGE_PURGE";
             exit 0
             ;;
@@ -1336,10 +1336,10 @@ help_func(){
             echo "$USAGE_MODIFYREPO";
             exit 0
             ;;
-	save)
-	    echo "$USAGE_SAVE";
-	    exit 0
-	    ;;
+        save)
+            echo "$USAGE_SAVE";
+            exit 0
+            ;;
         export|ex)
             echo "$USAGE_EXPORT";
             exit 0
@@ -1425,7 +1425,7 @@ while true ; do
             GETOPT_RESTORE='true';
             shift
             ;;
-	--dir)
+        --dir)
             GETOPT_DIR=$2;
             shift 2
             ;;
@@ -1497,7 +1497,7 @@ while true ; do
                     info_func $1;
                     exit 0
                     ;;
-		save)
+                save)
                     shift;
                     save_func $1;
                     exit 0
